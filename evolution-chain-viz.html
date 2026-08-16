@@ -380,6 +380,12 @@
   }
   .node.collapsed .node-body { display: none; }
   .node.collapsed .node-head { margin-bottom: 0; }
+
+  /* 节点自身缩略/展开（2026-08-16 用户要求：默认缩略，点头部自主切换） */
+  .node.self-folded .node-body { display: none; }
+  .node.self-folded .node-head { margin-bottom: 0; cursor: pointer; }
+  .node.self-folded .title { font-weight: 600; }
+  .node-head { cursor: pointer; }
   .node.collapsed .title {
     white-space: nowrap;
     overflow: hidden;
@@ -1362,8 +1368,9 @@ function buildWorld() {
     const realId = node.origId || node.id;
     const detail = getNodeDetail(cid, { ...node, id: realId });
     const el = document.createElement('div');
-    el.className = `node ${node.type}`;
+    el.className = `node ${node.type} self-folded`; // 默认缩略（2026-08-16 用户要求）
     el.dataset.id = node.id;
+    el.title = '点击标题缩略/展开，点题目看详情';
     const hasKids = !multi && ch.edges.some(e => e.from === realId);
     const kidsHidden = !!folded[node.id];
     const btnHtml = hasKids
@@ -1393,6 +1400,16 @@ function buildWorld() {
       cbtn.addEventListener('click', (e) => {
         e.stopPropagation();
         toggleSubtree(node);
+      });
+    }
+
+    // 节点自身缩略/展开：点头部切换（默认缩略，用户 2026-08-16 要求）
+    const head = el.querySelector('.node-head');
+    if (head) {
+      head.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dragMoved) return;
+        el.classList.toggle('self-folded');
       });
     }
 
