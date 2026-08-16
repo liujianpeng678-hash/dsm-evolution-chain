@@ -424,6 +424,25 @@
     background: #0ea5e9;
   }
 
+  /* 节点编号徽章（参考图 E01/E07 风格，2026-08-16） */
+  .node .node-idx {
+    font-size: 11px;
+    font-weight: 700;
+    color: #7dd3fc;
+    background: rgba(56, 189, 248, .14);
+    border: 1px solid rgba(56, 189, 248, .38);
+    padding: 1px 7px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    line-height: 1.6;
+  }
+
+  .node.root .node-idx {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, .12);
+    border-color: rgba(245, 158, 11, .45);
+  }
+
   .node .title {
     font-size: 14px;
     font-weight: 700;
@@ -1345,7 +1364,8 @@ function buildWorld() {
       : '<span class="collapse-btn none"></span>';
     el.innerHTML = `
       <div class="node-head">
-        <div class="badge">${node.type === 'root' ? '母题' : '真实题'}</div>
+        <div class="badge"></div>
+        <div class="node-idx">${realId}</div>
         <div class="title">${node.title}</div>
         ${btnHtml}
       </div>
