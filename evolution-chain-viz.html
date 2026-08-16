@@ -1326,13 +1326,20 @@ function buildWorld() {
   subtreeState = loadSubtreeState();
 
   if (multi) {
-    // 多链合并视图：各链节点/边按原坐标合并（id 唯一化 cid:nid），并排显示所有链
+    // 多链合并视图：各链节点合并，母题（根节点）对齐到同一列，链与链垂直错开（参考图风格）
     nodes = [];
     edges = [];
-    activeChainIds.forEach(cid => {
+    activeChainIds.forEach((cid, ci) => {
       const ch = chains[cid];
       if (!ch) return;
-      ch.nodes.forEach(n => nodes.push({ ...n, id: cid + ':' + n.id, cid, origId: n.id }));
+      const roots = ch.nodes.filter(n => !(ch.edges || []).some(e => e.to === n.id));
+      const root = roots[0] || ch.nodes[0];
+      // 平移量：根节点归零（x 对齐同一列），垂直按链序号错开
+      const dx = root.x, dy = root.y;
+      ch.nodes.forEach(n => nodes.push({
+        ...n, id: cid + ':' + n.id, cid, origId: n.id,
+        x: n.x - dx, y: n.y - dy + ci * 640,
+      }));
       (ch.edges || []).forEach(e => edges.push({ from: cid + ':' + e.from, to: cid + ':' + e.to, label: e.label, cid }));
     });
   } else {
