@@ -382,9 +382,6 @@
   .node.collapsed .node-head { margin-bottom: 0; }
 
   /* 节点自身缩略/展开（2026-08-16 用户要求：默认缩略，点头部自主切换） */
-  .node.self-folded .node-body { display: none; }
-  .node.self-folded .node-head { margin-bottom: 0; cursor: pointer; }
-  .node.self-folded .title { font-weight: 600; }
   .node-head { cursor: pointer; }
   .node.collapsed .title {
     white-space: nowrap;
@@ -1331,6 +1328,17 @@ function buildWorld() {
   const chain = chains[activeChainId];
   subtreeState = loadSubtreeState();
 
+  if (!multi && chain) {
+    // 默认缩略后面的节点：无折叠记录时只显示母题（2026-08-16 用户要求）
+    if (!subtreeState[activeChainId] || Object.keys(subtreeState[activeChainId]).length === 0) {
+      const root = chain.nodes.find(n => !(chain.edges || []).some(e => e.to === n.id)) || chain.nodes[0];
+      if (root && (chain.edges || []).some(e => e.from === root.id)) {
+        subtreeState[activeChainId] = { [root.id]: true };
+        saveSubtreeState();
+      }
+    }
+  }
+
   if (multi) {
     // 多链合并视图：各链节点合并，母题（根节点）对齐到同一列，链与链垂直错开（参考图风格）
     nodes = [];
@@ -1368,9 +1376,9 @@ function buildWorld() {
     const realId = node.origId || node.id;
     const detail = getNodeDetail(cid, { ...node, id: realId });
     const el = document.createElement('div');
-    el.className = `node ${node.type} self-folded`; // 默认缩略（2026-08-16 用户要求）
+    el.className = `node ${node.type}`;
     el.dataset.id = node.id;
-    el.title = '点击标题缩略/展开，点题目看详情';
+    el.title = '点击标题折叠/展开它后面的节点';
     const hasKids = !multi && ch.edges.some(e => e.from === realId);
     const kidsHidden = !!folded[node.id];
     const btnHtml = hasKids
@@ -1403,13 +1411,13 @@ function buildWorld() {
       });
     }
 
-    // 节点自身缩略/展开：点头部切换（默认缩略，用户 2026-08-16 要求）
+    // 点头部 = 折叠/展开它后面的节点（单链模式；多链视图暂不折叠，聚焦单链后可折叠）
     const head = el.querySelector('.node-head');
-    if (head) {
+    if (head && !multi) {
       head.addEventListener('click', (e) => {
         e.stopPropagation();
         if (dragMoved) return;
-        el.classList.toggle('self-folded');
+        toggleSubtree(node);
       });
     }
 
