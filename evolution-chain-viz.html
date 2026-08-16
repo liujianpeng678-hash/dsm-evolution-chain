@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>进化链 · 自由画布</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* 全局深色滚动条（替代白色/灰色默认滚动条） */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f172a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* 侧边栏 */
+  #sidebar {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 30;
+    width: 260px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 14px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+  }
+
+  .sidebar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  #sidebarToggle {
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 8px;
+    line-height: 1.4;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+  }
+  #sidebarToggle:hover { color: #f1f5f9; border-color: #475569; }
+
+  /* 右边缘拖动手柄：自由拉动调整目录宽度 */
+  #sidebarResizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 40;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+  }
+  #sidebarResizer:hover, #sidebarResizer.active { background: rgba(14,165,233,0.35); }
+
+  /* 收起状态 */
+  #sidebar.collapsed .sub,
+  #sidebar.collapsed #chainList,
+  #sidebar.collapsed .legend { display: none; }
+  #sidebar.collapsed h1 { display: none; }
+  #sidebar.collapsed .sidebar-top { justify-content: center; }
+
+  #sidebar h1 {
+    font-size: 18px;
+    margin-bottom: 0;
+  }
+
+  #sidebar .sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  .chain-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .chain-btn:hover {
+    background: #334155;
+    border-color: #475569;
+  }
+  .chain-btn.pending { opacity: 0.8; cursor: default; }
+  .chain-btn.pending:hover { border-color: #334155; background: #1e293b; }
+
+  .chain-btn.active {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    border-color: #a78bfa;
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
+  }
+  .chain-btn.active:hover {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    border-color: #a78bfa;
+  }
+
+  .group-title {
+    margin: 10px 0 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #7dd3fc;
+    letter-spacing: 0.5px;
+  }
+
+  .group-title:first-child {
+    margin-top: 0;
+  }
+
+  .dir-node {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    margin: 1px 0;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: #cbd5e1;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dir-node:hover { background: #1e293b; color: #f1f5f9; }
+  .dir-node .dir-arrow { color: #64748b; width: 14px; flex-shrink: 0; }
+  .dir-node .dir-name { overflow: hidden; text-overflow: ellipsis; }
+  .dir-node .dir-dot { margin-left: auto; color: #0ea5e9; font-size: 8px; padding-right: 4px; flex-shrink: 0; }
+
+  .chain-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin-bottom: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .chain-btn:hover { background: #334155; border-color: #475569; }
+  .chain-btn .leaf-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .leaf-badge {
+    flex-shrink: 0;
+    background: #8b5cf6;
+    color: #fff;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 6px;
+    min-width: 14px;
+    text-align: center;
+  }
+  .chain-btn.pending { opacity: 0.75; cursor: default; }
+  .chain-btn.pending:hover { background: #1e293b; border-color: #334155; }
+
+  .legend {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #334155;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 2;
+  }
+
+  .legend .dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+  }
+
+  /* 工具条 */
+  #toolbar {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    display: flex;
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid #334155;
+    border-radius: 999px;
+    padding: 6px 10px;
+    backdrop-filter: blur(8px);
+  }
+
+  #toolbar button {
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  #toolbar button:hover {
+    background: #334155;
+    border-color: #475569;
+  }
+
+  /* 画布 */
+  #viewport {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    cursor: grab;
+    background-color: #0f172a;
+    background-image:
+      linear-gradient(rgba(148,163,184,0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,0.07) 1px, transparent 1px),
+      radial-gradient(circle at 20% 20%, #1e293b 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, #0f172a 0%, transparent 40%);
+    background-size: 40px 40px, 40px 40px, auto, auto;
+  }
+
+  #viewport.no-grid {
+    background-image:
+      radial-gradient(circle at 20% 20%, #1e293b 0%, transparent 40%),
+      radial-gradient(circle at 80% 80%, #0f172a 0%, transparent 40%);
+  }
+
+  #viewport.dragging {
+    cursor: grabbing;
+  }
+
+  #world {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    transform-origin: 0 0;
+  }
+
+  #edgeLayer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 6000px;
+    height: 6000px;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .edge {
+    fill: none;
+    stroke: #64748b;
+    stroke-width: 3;
+    marker-end: url(#arrowhead);
+  }
+
+  .edge.highlight {
+    stroke: #0ea5e9;
+    stroke-width: 3;
+  }
+
+  .edge-label {
+    fill: #e2e8f0;
+    font-size: 15px;
+    font-weight: 600;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: #0f172a;
+    stroke-width: 5px;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
+  .node {
+    position: absolute;
+    width: 280px;
+    min-height: 130px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    cursor: grab;
+    user-select: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .node:hover {
+    border-color: #475569;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.45);
+  }
+
+  .node-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+  .node-head .collapse-btn {
+    cursor: pointer;
+    color: #64748b;
+    font-size: 11px;
+    width: 14px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 2px 0;
+    transition: color 0.15s ease;
+    line-height: 1;
+    margin-left: auto;
+  }
+  .node-head .collapse-btn.none { visibility: hidden; }
+  .node-head .collapse-btn:hover { color: #f1f5f9; }
+  .node.collapsed {
+    min-height: 0;
+    padding: 8px 10px;
+  }
+  .node.collapsed .node-body { display: none; }
+  .node.collapsed .node-head { margin-bottom: 0; }
+  .node.collapsed .title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12.5px;
+  }
+
+  .node.dragging {
+    cursor: grabbing;
+    z-index: 20;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.55);
+  }
+
+  .node.root {
+    border-color: #334155;
+    border-left: 3px solid #f59e0b;
+    background: #1e293b;
+  }
+
+  .node.real {
+    border-color: #334155;
+    border-left: 3px solid #0ea5e9;
+    background: #1e293b;
+  }
+
+  .node .badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    padding: 0;
+    margin: 0;
+    font-size: 0;
+    background: #64748b;
+    flex-shrink: 0;
+  }
+
+  .node.root .badge {
+    background: #f59e0b;
+  }
+
+  .node.real .badge {
+    background: #0ea5e9;
+  }
+
+  .node .title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #f1f5f9;
+  }
+
+  .node .content {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.6;
+  }
+
+  .node .formula {
+    margin-top: 8px;
+    padding: 6px 8px;
+    background: #0f172a;
+    border: 1px solid rgba(51, 65, 85, 0.6);
+    border-radius: 8px;
+    font-size: 13px;
+    color: #f8fafc;
+    font-family: "Cambria Math", "Times New Roman", serif;
+    text-align: center;
+  }
+
+  /* 节点详情弹窗 */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal.hidden {
+    display: none;
+  }
+
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(3px);
+  }
+
+  .modal-content {
+    position: relative;
+    width: 720px;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 24px 28px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    color: #e2e8f0;
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    background: #334155;
+    color: #e2e8f0;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .modal-close:hover {
+    background: #475569;
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 800;
+    margin-bottom: 14px;
+    padding-right: 36px;
+  }
+
+  .modal-section {
+    margin-bottom: 18px;
+  }
+
+  .modal-section h3 {
+    font-size: 13px;
+    color: #7dd3fc;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .modal-section p {
+    font-size: 15px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .modal-section img {
+    max-width: 100%;
+    max-height: 420px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    background: #0f172a;
+    display: block;
+    margin-top: 6px;
+  }
+
+
+  /* 底部全链总览条 */
+  #overview {
+    position: fixed;
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 92vw;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid #334155;
+    border-radius: 14px;
+    padding: 8px 10px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.45);
+  }
+
+  #overviewLabel {
+    flex: none;
+    font-size: 12px;
+    font-weight: 700;
+    color: #7dd3fc;
+    white-space: nowrap;
+  }
+
+  #overviewList {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    overflow-x: auto;
+    max-width: calc(92vw - 90px);
+    padding: 2px 0;
+    scrollbar-width: thin;
+  }
+
+  .ov-arrow {
+    flex: none;
+    color: #64748b;
+    font-size: 14px;
+    user-select: none;
+  }
+
+  .ov-chip {
+    flex: none;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s ease;
+  }
+
+  .ov-chip:hover {
+    border-color: #38bdf8;
+    color: #e2e8f0;
+  }
+
+  .ov-chip.root {
+    background: #3b2f14;
+    border-color: #f59e0b;
+    color: #fde68a;
+  }
+
+
+  /* ===== 进化链闯关游戏 ===== */
+  #gameOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(2, 6, 23, 0.82);
+    backdrop-filter: blur(6px);
+  }
+  #gameOverlay.hidden {
+    display: none;
+  }
+  .game-panel {
+    width: 860px;
+    max-width: 96vw;
+    max-height: 92vh;
+    overflow-y: auto;
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 20px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+    padding: 22px 26px;
+    color: #e2e8f0;
+  }
+  .game-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .game-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+  }
+  .game-chain-name {
+    font-size: 13px;
+    color: #7dd3fc;
+    margin-top: 2px;
+  }
+  .game-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 14px;
+    background: #1e293b;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid #334155;
+  }
+  .game-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #334155;
+    border: none;
+    color: #e2e8f0;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .game-close:hover {
+    background: #ef4444;
+  }
+  .game-path {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .game-node-chip {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    white-space: nowrap;
+  }
+  .game-node-chip.current {
+    background: #0ea5e9;
+    border-color: #38bdf8;
+    color: #fff;
+    font-weight: 700;
+  }
+  .game-node-chip.cleared {
+    background: #065f46;
+    border-color: #10b981;
+    color: #a7f3d0;
+  }
+  .game-node-chip.locked {
+    opacity: 0.45;
+  }
+  .game-question-box {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .game-question-meta {
+    font-size: 12px;
+    color: #7dd3fc;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .game-question-text {
+    font-size: 17px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .game-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .game-option {
+    text-align: left;
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  .game-option:hover {
+    border-color: #38bdf8;
+    background: #263449;
+  }
+  .game-option.correct {
+    background: #065f46;
+    border-color: #10b981;
+    color: #d1fae5;
+  }
+  .game-option.wrong {
+    background: #7f1d1d;
+    border-color: #ef4444;
+    color: #fee2e2;
+  }
+  .game-feedback {
+    min-height: 28px;
+    font-size: 15px;
+    margin-bottom: 12px;
+    line-height: 1.5;
+  }
+  .game-feedback.good { color: #34d399; }
+  .game-feedback.bad { color: #f87171; }
+  .game-actions {
+    display: flex;
+    gap: 10px;
+  }
+  .game-actions button {
+    background: #0ea5e9;
+    color: #fff;
+    border: none;
+    border-radius: 999px;
+    padding: 10px 22px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .game-actions button:hover {
+    background: #38bdf8;
+  }
+  .game-actions button.secondary {
+    background: #334155;
+  }
+  .game-actions button.secondary:hover {
+    background: #475569;
+  }
+  .game-actions .hidden {
+    display: none;
+  }
+  .game-win, .game-lose {
+    text-align: center;
+    padding: 30px 10px;
+  }
+  .game-win h2 {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+  .game-lose h2 {
+    font-size: 26px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 640px) {
+    .game-options { grid-template-columns: 1fr; }
+    .game-head { flex-wrap: wrap; }
+    .game-stats { order: 3; width: 100%; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div class="sidebar-top">
+      <h1>🧬 进化链</h1>
+      <button id="sidebarToggle" title="收起/展开目录">«</button>
+    </div>
+    <div class="sub">自由画布：拖动节点、拖背景平移、滚轮缩放</div>
+    <div id="chainList"></div>
+    <div class="legend">
+      <div><span class="dot" style="background:#f59e0b"></span>母题 / 方法根</div>
+      <div><span class="dot" style="background:#0ea5e9"></span>真实题节点</div>
+      <div><span class="dot" style="background:#64748b"></span>进化边（可拖动画布查看）</div>
+        <div><span class="dot" style="background:transparent"></span>点击节点 → 查看完整题目与解析</div>
+    </div>
+    <div id="sidebarResizer" title="← 拖动调整目录宽度 →"></div>
+  </div>
+
+  <!-- 工具栏（已按用户要求隐藏，2026-08-16；如需恢复删除 style="display:none"） -->
+  <div id="toolbar" style="display:none">
+    <button onclick="resetView()">复位视图</button>
+    <button onclick="fitView()">适应全部</button>
+    <button onclick="toggleGrid()">网格</button>
+      <button onclick="relayout()">树状重排</button>
+        <button onclick="collapseAllSubtrees()" title="收起所有节点的后面分支">收起分支</button>
+        <button onclick="expandAllSubtrees()" title="展开所有分支">展开分支</button>
+        <button onclick="startGame(activeChainId)" style="background:#0ea5e9;border-color:#38bdf8;color:#fff;font-weight:700">🎮 闯关</button>
+  </div>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-backdrop" onclick="closeModal()"></div>
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div class="modal-title" id="modalTitle"></div>
+      <div class="modal-section">
+        <h3>题目</h3>
+        <p id="modalQuestion"></p>
+      </div>
+        <div class="modal-section" id="modalQuestionImageSection" style="display:none">
+          <h3>题目配图</h3>
+          <img id="modalQuestionImage" alt="题目配图" />
+        </div>
+      <div class="modal-section">
+        <h3>解析 / 解答</h3>
+        <div class="modal-section" id="modalAnswerImageSection" style="display:none">
+          <h3>答案配图</h3>
+          <img id="modalAnswerImage" alt="答案配图" />
+        </div>
+        <p id="modalAnalysis"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 进化过程总览面板（已按用户要求隐藏，2026-08-16；恢复删除 style="display:none"） -->
+  <div id="overview" style="display:none">
+    <div id="overviewLabel">进化过程</div>
+    <div id="overviewList"></div>
+  </div>
+
+
+
+  <div id="viewport">
+    <div id="world">
+      <svg id="edgeLayer" width="6000" height="6000">
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+            <polygon points="0 0, 10 4, 0 8" fill="#64748b" />
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </div>
+</div>
+
+  <!-- 进化链闯关游戏 -->
+  <div id="gameOverlay" class="hidden">
+    <div class="game-panel">
+      <div class="game-head">
+        <div>
+          <div class="game-title">🧬 进化链闯关</div>
+          <div class="game-chain-name" id="gameChainName"></div>
+        </div>
+        <div class="game-stats">
+          <span>❤️ <b id="gameLives">3</b></span>
+          <span>⭐ <b id="gameScore">0</b></span>
+          <span>📶 <b id="gameProgress">0/0</b></span>
+        </div>
+        <button class="game-close" onclick="closeGame()">×</button>
+      </div>
+      <div class="game-path" id="gamePath"></div>
+      <div class="game-question-box" id="gameQuestionBox">
+        <div class="game-question-meta" id="gameQuestionMeta"></div>
+        <div class="game-question-text" id="gameQuestionText"></div>
+      </div>
+      <div class="game-options" id="gameOptions"></div>
+      <div class="game-feedback" id="gameFeedback"></div>
+      <div class="game-actions">
+        <button id="gameNextBtn" class="hidden" onclick="nextGameNode()">下一关 →</button>
+        <button id="gameRestartBtn" class="hidden secondary" onclick="restartGame()">重新挑战</button>
+        <button class="secondary" onclick="closeGame()">退出</button>
+      </div>
+    </div>
+  </div>
+
+<!-- 数据外置：data/*.js（2026-08-16 扩展准备，10W 题承载） -->
+<script src="data/catalog.js"></script>
+<script src="data/chains.js"></script>
+<script src="data/problemGroups.js"></script>
+<script src="data/nodeDetails.js"></script>
+<script>
+// ========== 逻辑（数据已外置） ==========
+
+
+function getNodeDetail(chainId, node) {
+  const key = chainId + ':' + node.id;
+  if (nodeDetails[key]) return nodeDetails[key];
+  // 跨链复用同编号节点的详情（如 B1、B8 等唯一编号）
+  const fallbackKey = Object.keys(nodeDetails).find(k => k.endsWith(':' + node.id));
+  return nodeDetails[fallbackKey] || { question: node.content || node.title, analysis: '（暂无详细解析，待补充）' };
+}
+
+
+// ========== 状态 ==========
+let view = { scale: 0.8, tx: 80, ty: 40 };
+let activeChainId = 'ssa';
+// 子树折叠状态：{ chainId: { nodeId: true } }（true = 该节点后面的所有后代节点被隐藏，按链持久化）
+let subtreeState = {};
+const SUBTREE_KEY = 'evolution-chain-subtree-v1';
+function loadSubtreeState() {
+  try { return JSON.parse(localStorage.getItem(SUBTREE_KEY)) || {}; } catch (e) { return {}; }
+}
+function saveSubtreeState() {
+  try { localStorage.setItem(SUBTREE_KEY, JSON.stringify(subtreeState)); } catch (e) {}
+}
+// 计算被隐藏的节点集合：祖先被折叠 ⇒ 后代全部隐藏
+function computeHidden(chain) {
+  const folded = subtreeState[activeChainId] || {};
+  const hidden = new Set();
+  const roots = chain.nodes.filter(n => !chain.edges.some(e => e.to === n.id));
+  const visit = (id, ancestorFolded) => {
+    if (ancestorFolded) hidden.add(id);
+    const selfFolded = ancestorFolded || !!folded[id];
+    chain.edges.filter(e => e.from === id).forEach(e => visit(e.to, selfFolded));
+  };
+  roots.forEach(r => visit(r.id, false));
+  return hidden;
+}
+// 点击节点按钮：展开/缩略它后面的节点
+function toggleSubtree(node) {
+  subtreeState[activeChainId] = subtreeState[activeChainId] || {};
+  subtreeState[activeChainId][node.id] = !subtreeState[activeChainId][node.id];
+  saveSubtreeState();
+  buildWorld();
+}
+// 收起全部分支（只留根）
+function collapseAllSubtrees() {
+  const chain = chains[activeChainId];
+  subtreeState[activeChainId] = {};
+  chain.nodes.forEach(n => {
+    if (chain.edges.some(e => e.from === n.id)) subtreeState[activeChainId][n.id] = true;
+  });
+  saveSubtreeState();
+  buildWorld();
+}
+// 展开全部分支
+function expandAllSubtrees() {
+  delete subtreeState[activeChainId];
+  saveSubtreeState();
+  buildWorld();
+}
+let nodes = [];
+let edges = [];
+let draggingNode = null;
+let panning = false;
+let lastX = 0, lastY = 0;
+let dragMoved = false;
+let showGrid = true;
+
+const viewport = document.getElementById('viewport');
+const world = document.getElementById('world');
+const edgeLayer = document.getElementById('edgeLayer');
+const chainList = document.getElementById('chainList');
+
+// ========== 持久化 ==========
+const STORAGE_KEY = 'evolution-chain-viz-v1';
+
+function loadSavedState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveState() {
+  try {
+    const positions = {};
+    nodes.forEach(n => {
+      positions[n.id] = { x: n.x, y: n.y };
+    });
+    const state = loadSavedState();
+    state.positions = state.positions || {};
+    state.positions[activeChainId] = positions;
+    state.activeChainId = activeChainId;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    // localStorage 不可用时忽略
+  }
+}
+
+function applySavedPositions(chainId, nodeList) {
+  const state = loadSavedState();
+  const saved = state.positions && state.positions[chainId];
+  if (!saved) return;
+  nodeList.forEach(n => {
+    if (saved[n.id]) {
+      n.x = saved[n.id].x;
+      n.y = saved[n.id].y;
+    }
+  });
+}
+
+
+// ========== 构建侧边栏 ==========
+// 10W 题扩展：目录树改为深度优先分片渲染（每帧 16ms 时间片），
+// 展开超大目录时不一次性创建数万 DOM、不卡主线程
+let taskStack = [];
+let leafTimer = null;
+function renderChainList() {
+  chainList.innerHTML = '';
+  taskStack = [];
+  if (leafTimer) { cancelAnimationFrame(leafTimer); leafTimer = null; }
+
+  // 折叠状态（持久化，用户自由控制）
+  const state = loadSavedState();
+  const open = state.catalogOpen || {};
+
+  // 首次使用：预展开 快速提分→数学→高中 及全部含链目录路径（之后完全由用户自由展开/收起）
+  if (!state.catalogOpen) {
+    open['mod-quick'] = true;
+    open['subj-math'] = true;
+    open['stage-hs'] = true;
+    const seedChainPath = (node) => {
+      if (!node.ch) return node.c ? node.c.length > 0 : false;
+      let childHas = false;
+      for (const child of (node.ch || [])) {
+        if (seedChainPath(child)) childHas = true;
+      }
+      if (childHas && node.k) open[node.k] = true;
+      return childHas;
+    };
+    catalog.ch.forEach(seedChainPath);
+    // 预展开状态立即持久化，避免后续点击覆盖丢失
+    const st0 = loadSavedState();
+    st0.catalogOpen = open;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st0)); } catch (e) {}
+  }
+
+  // 问题叶子：紧凑单行，点击才切换进化链（问题层）
+  function renderProblem(node, depth) {
+    const hasChain = node.c && node.c.length > 0;
+    const btn = document.createElement('button');
+    btn.className = 'chain-btn leaf' + (hasChain ? '' : ' pending') + (hasChain && node.c.includes(activeChainId) ? ' active' : '');
+    const pad = depth * 14;
+    if (hasChain) {
+      btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">🔗 ${node.n}</span><span class="leaf-badge">${node.c.length}</span>`;
+      btn.title = '点击查看进化链（' + node.c.length + ' 条）';
+      btn.onclick = () => {
+        activeChainId = node.c[0]; // 默认加载该问题的总进化图
+        renderChainList();
+        buildWorld();
+        focusChain(activeChainId);
+        saveState();
+      };
+    } else {
+      btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">◇ ${node.n}</span>`;
+      btn.title = '进化链待建';
+    }
+    chainList.appendChild(btn);
+  }
+
+  // 目录节点：每一层都可自由展开/收起其后代；点标题即切换
+  function renderDir(node, depth) {
+    const isOpen = open[node.k] === true;
+    const header = document.createElement('div');
+    header.className = 'dir-node' + (isOpen ? ' open' : '');
+    header.style.paddingLeft = (depth * 14) + 'px';
+    header.innerHTML = `<span class="dir-arrow">${isOpen ? '▾' : '▸'}</span><span class="dir-name">${node.n}</span>` + (hasChainUnder(node) ? '<span class="dir-dot">●</span>' : '');
+    header.title = isOpen ? '点击收起' : '点击展开';
+    header.onclick = () => {
+      const st = loadSavedState();
+      st.catalogOpen = st.catalogOpen || {};
+      st.catalogOpen[node.k] = !isOpen;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+      renderChainList();
+    };
+    chainList.appendChild(header);
+    if (isOpen) {
+      // 子节点逆序压栈（栈顶优先 = 深度优先，保持目录顺序）
+      const children = node.ch || [];
+      for (let i = children.length - 1; i >= 0; i--) {
+        taskStack.push({ n: children[i], d: depth + 1 });
+      }
+    }
+  }
+
+  // 目录下是否有已建链的问题（有则显示 ● 标记）
+  function hasChainUnder(node) {
+    if (node.c) return node.c.length > 0;
+    return (node.ch || []).some(hasChainUnder);
+  }
+
+  function renderNode(node, depth) {
+    const isProblem = !node.ch;
+    if (isProblem) { renderProblem(node, depth); return; }
+    renderDir(node, depth);
+  }
+
+  // 根节点
+  const rootHeader = document.createElement('div');
+  rootHeader.className = 'group-title';
+  rootHeader.style.cursor = 'pointer';
+  rootHeader.textContent = '📁 ' + catalog.n;
+  chainList.appendChild(rootHeader);
+  // 分片渲染：每帧最多 16ms，处理完一批继续 RAF（10W 题不卡）
+  const children = catalog.ch || [];
+  for (let i = children.length - 1; i >= 0; i--) {
+    taskStack.push({ n: children[i], d: 0 });
+  }
+  const flush = () => {
+    const start = performance.now();
+    while (taskStack.length > 0) {
+      const t = taskStack.pop();
+      if (!t.n.ch) renderProblem(t.n, t.d);
+      else renderDir(t.n, t.d); // 内部会继续向 taskStack 压栈
+      if (performance.now() - start > 16) break;
+    }
+    if (taskStack.length > 0) leafTimer = requestAnimationFrame(flush);
+    else leafTimer = null;
+  };
+  flush();
+}
+
+// ========== 树状布局（从左到右，按层级） ==========
+function layoutTree(nodeList, edgeList) {
+  const children = new Map();
+  const hasParent = new Set();
+  nodeList.forEach(n => children.set(n.id, []));
+  edgeList.forEach(e => {
+    if (children.has(e.from) && nodeList.some(n => n.id === e.to)) {
+      children.get(e.from).push(e.to);
+      hasParent.add(e.to);
+    }
+  });
+
+  const roots = nodeList.filter(n => !hasParent.has(n.id));
+  if (roots.length === 0) {
+    // 兜底：没有明确根时，取第一个节点当根
+    roots.push(nodeList[0]);
+  }
+
+  const H = 720;   // 层间距（水平）：拉长进化线
+  const V = 260;   // 子树间距（垂直）：拉开节点距离
+  const NODE_H = 160;
+
+  function place(id, depth, minY) {
+    const node = nodeList.find(n => n.id === id);
+    const kids = (children.get(id) || []).filter(kid => nodeList.some(n => n.id === kid));
+
+    if (kids.length === 0) {
+      node.x = depth * H;
+      node.y = minY;
+      return { top: minY, bottom: minY + NODE_H, center: minY + NODE_H / 2 };
+    }
+
+    let childRects = [];
+    let curY = minY;
+    kids.forEach(kid => {
+      const rect = place(kid, depth + 1, curY);
+      childRects.push(rect);
+      curY = rect.bottom + V;
+    });
+
+    const top = Math.min(...childRects.map(r => r.top));
+    const bottom = Math.max(...childRects.map(r => r.bottom));
+    const center = (top + bottom) / 2;
+    node.x = depth * H;
+    node.y = center - NODE_H / 2;
+    return { top, bottom, center };
+  }
+
+  let cursorY = 60;
+  roots.forEach(root => {
+    const rect = place(root.id, 0, cursorY);
+    cursorY = rect.bottom + V * 2;
+  });
+}
+
+// ========== 全链总览（线性展示进化过程） ==========
+function getLinearOrder(nodeList, edgeList) {
+  const children = new Map();
+  const indeg = new Map();
+  nodeList.forEach(n => { children.set(n.id, []); indeg.set(n.id, 0); });
+  edgeList.forEach(e => {
+    if (children.has(e.from) && nodeList.some(n => n.id === e.to)) {
+      children.get(e.from).push(e.to);
+      indeg.set(e.to, (indeg.get(e.to) || 0) + 1);
+    }
+  });
+  const queue = nodeList.filter(n => indeg.get(n.id) === 0).map(n => n.id);
+  const orderIds = [];
+  while (queue.length) {
+    const id = queue.shift();
+    orderIds.push(id);
+    (children.get(id) || []).forEach(c => {
+      indeg.set(c, indeg.get(c) - 1);
+      if (indeg.get(c) === 0) queue.push(c);
+    });
+  }
+  nodeList.forEach(n => { if (!orderIds.includes(n.id)) orderIds.push(n.id); });
+  return orderIds.map(id => nodeList.find(n => n.id === id)).filter(Boolean);
+}
+
+function renderOverview() {
+  const listEl = document.getElementById('overviewList');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  const order = getLinearOrder(nodes, edges);
+  order.forEach((node, idx) => {
+    if (idx > 0) {
+      const arrow = document.createElement('span');
+      arrow.className = 'ov-arrow';
+      arrow.textContent = '→';
+      listEl.appendChild(arrow);
+    }
+    const chip = document.createElement('button');
+    chip.className = 'ov-chip' + (node.type === 'root' ? ' root' : '');
+    const detail = getNodeDetail(activeChainId, node);
+    chip.textContent = node.title.split('·')[0].trim();
+    chip.title = detail.question || node.title;
+    chip.onclick = () => focusNode(node.id);
+    listEl.appendChild(chip);
+  });
+}
+
+function focusNode(id) {
+  const node = nodes.find(n => n.id === id);
+  if (!node) return;
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  if (view.scale < 0.7) view.scale = 0.7;
+  view.tx = vw / 2 - (node.x + 140) * view.scale;
+  view.ty = vh / 2 - (node.y + 80) * view.scale;
+  applyTransform();
+}
+
+
+
+// ========== 构建节点与边 ==========
+function buildWorld() {
+  // 清空旧节点
+  world.querySelectorAll('.node').forEach(n => n.remove());
+  edgeLayer.querySelectorAll('path.edge, text.edge-label').forEach(n => n.remove());
+
+  const chain = chains[activeChainId];
+  subtreeState = loadSubtreeState();
+
+  // 可见性过滤：被折叠祖先覆盖的后代节点不显示
+  const hidden = computeHidden(chain);
+  const visNodes = chain.nodes.filter(n => !hidden.has(n.id));
+  const visEdges = chain.edges.filter(e => !hidden.has(e.from) && !hidden.has(e.to));
+  nodes = visNodes.map(n => ({ ...n }));
+  edges = visEdges.map(e => ({ ...e }));
+
+  applySavedPositions(activeChainId, nodes);
+  layoutTree(nodes, edges);
+
+  const folded = subtreeState[activeChainId] || {};
+
+  nodes.forEach(node => {
+    const detail = getNodeDetail(activeChainId, node);
+    const el = document.createElement('div');
+    el.className = `node ${node.type}`;
+    el.dataset.id = node.id;
+    const hasKids = chain.edges.some(e => e.from === node.id);
+    const kidsHidden = !!folded[node.id];
+    const btnHtml = hasKids
+      ? '<span class="collapse-btn" title="' + (kidsHidden ? '展开后面的节点' : '缩略后面的节点') + '">' + (kidsHidden ? '▸' : '▾') + '</span>'
+      : '<span class="collapse-btn none"></span>';
+    el.innerHTML = `
+      <div class="node-head">
+        <div class="badge">${node.type === 'root' ? '母题' : '真实题'}</div>
+        <div class="title">${node.title}</div>
+        ${btnHtml}
+      </div>
+      <div class="node-body">
+        <div class="content">${(detail.question || node.content).replace(/</g, '&lt;')}</div>
+        <div class="formula">${node.formula}</div>
+      </div>
+    `;
+    el.style.left = node.x + 'px';
+    el.style.top = node.y + 'px';
+    node._el = el;
+    world.appendChild(el);
+
+    // 子树折叠/展开按钮：只控制"后面的节点"显示，不影响拖动与弹窗
+    if (hasKids) {
+      const cbtn = el.querySelector('.collapse-btn');
+      cbtn.addEventListener('mousedown', (e) => e.stopPropagation());
+      cbtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleSubtree(node);
+      });
+    }
+
+    el.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      dragMoved = false;
+      const startWorldX = (e.clientX - view.tx) / view.scale;
+      const startWorldY = (e.clientY - view.ty) / view.scale;
+      draggingNode = { el, node, offsetX: startWorldX - node.x, offsetY: startWorldY - node.y, startX: e.clientX, startY: e.clientY };
+      el.classList.add('dragging');
+    });
+
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (dragMoved) return;
+      openNode(activeChainId, node);
+    });
+  });
+
+  edges.forEach(edge => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'edge');
+    edgeLayer.appendChild(path);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('class', 'edge-label');
+    edgeLayer.appendChild(label);
+    edge._path = path;
+    edge._label = label;
+  });
+
+  updateEdges();
+  renderOverview();
+}
+
+function updateEdges() {
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  edges.forEach(edge => {
+    const a = nodeMap[edge.from];
+    const b = nodeMap[edge.to];
+    if (!a || !b) return;
+
+    const ax = a.x + (a._el ? a._el.offsetWidth / 2 : 140);
+    const ay = a.y + (a._el ? a._el.offsetHeight / 2 : 80);
+    const bx = b.x + (b._el ? b._el.offsetWidth / 2 : 140);
+    const by = b.y + (b._el ? b._el.offsetHeight / 2 : 80);
+
+    // 简单曲线：横向时用水平贝塞尔，纵向时用垂直贝塞尔
+    const dx = Math.abs(bx - ax);
+    const dy = Math.abs(by - ay);
+    const curvature = Math.max(80, Math.min(220, (dx + dy) * 0.25));
+    let pathD;
+    if (dx > dy) {
+      const mid = (ax + bx) / 2;
+      pathD = `M ${ax} ${ay} C ${mid} ${ay}, ${mid} ${by}, ${bx} ${by}`;
+    } else {
+      const mid = (ay + by) / 2;
+      pathD = `M ${ax} ${ay} C ${ax} ${mid}, ${bx} ${mid}, ${bx} ${by}`;
+    }
+
+    edge._path.setAttribute('d', pathD);
+
+    const mx = (ax + bx) / 2;
+    const my = (ay + by) / 2;
+    edge._label.setAttribute('x', mx);
+    edge._label.setAttribute('y', my - 10);
+    edge._label.textContent = edge.label;
+  });
+}
+
+// ========== 视图变换 ==========
+function applyTransform() {
+  world.style.transform = `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})`;
+}
+
+function resetView() {
+  view = { scale: 0.8, tx: 80, ty: 40 };
+  applyTransform();
+}
+
+function fitView() {
+  if (!nodes.length) return;
+  const minX = Math.min(...nodes.map(n => n.x));
+  const minY = Math.min(...nodes.map(n => n.y));
+  const maxX = Math.max(...nodes.map(n => n.x + 280));
+  const maxY = Math.max(...nodes.map(n => n.y + 240));
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  const scale = Math.min(1.2, Math.max(0.3, Math.min(vw / (maxX - minX + 200), vh / (maxY - minY + 200))));
+  view.scale = scale;
+  view.tx = vw / 2 - (minX + maxX) / 2 * scale;
+  view.ty = vh / 2 - (minY + maxY) / 2 * scale;
+  applyTransform();
+}
+
+function focusChain(id) {
+  const chain = chains[id];
+  if (!chain) return;
+  const list = (id === activeChainId && nodes.length) ? nodes : chain.nodes;
+  const minX = Math.min(...list.map(n => n.x));
+  const minY = Math.min(...list.map(n => n.y));
+  const maxX = Math.max(...list.map(n => n.x + 280));
+  const maxY = Math.max(...list.map(n => n.y + 240));
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  const scale = Math.min(1.1, Math.max(0.32, Math.min(vw / (maxX - minX + 300), vh / (maxY - minY + 300))));
+  view.scale = scale;
+  view.tx = vw / 2 - (minX + maxX) / 2 * scale;
+  view.ty = vh / 2 - (minY + maxY) / 2 * scale;
+  applyTransform();
+}
+
+function relayout() {
+  buildWorld();
+  focusChain(activeChainId);
+}
+
+function openNode(chainId, node) {
+  const detail = getNodeDetail(chainId, node);
+  document.getElementById('modalTitle').textContent = node.title;
+  document.getElementById('modalQuestion').textContent = detail.question || node.content || '';
+  document.getElementById('modalAnalysis').textContent = detail.analysis || '（暂无解析，待补充）';
+
+  const qImg = detail.questionImage;
+  const aImg = detail.answerImage || detail.analysisImage;
+  const qSec = document.getElementById('modalQuestionImageSection');
+  const aSec = document.getElementById('modalAnswerImageSection');
+  if (qImg) {
+    qSec.style.display = '';
+    document.getElementById('modalQuestionImage').src = qImg;
+  } else {
+    qSec.style.display = 'none';
+    document.getElementById('modalQuestionImage').removeAttribute('src');
+  }
+  if (aImg) {
+    aSec.style.display = '';
+    document.getElementById('modalAnswerImage').src = aImg;
+  } else {
+    aSec.style.display = 'none';
+    document.getElementById('modalAnswerImage').removeAttribute('src');
+  }
+
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+
+
+// ========== 网格 ==========
+function toggleGrid() {
+  showGrid = !showGrid;
+  viewport.classList.toggle('no-grid', !showGrid);
+}
+
+// ========== 交互：平移 / 缩放 / 拖动节点 ==========
+viewport.addEventListener('mousedown', (e) => {
+  if (e.target !== viewport && e.target !== world && e.target !== edgeLayer) return;
+  panning = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  viewport.classList.add('dragging');
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (draggingNode) {
+    const { el, node, offsetX, offsetY } = draggingNode;
+      if (Math.abs(e.clientX - draggingNode.startX) + Math.abs(e.clientY - draggingNode.startY) > 3) dragMoved = true;
+    const wx = (e.clientX - view.tx) / view.scale;
+    const wy = (e.clientY - view.ty) / view.scale;
+    node.x = wx - offsetX;
+    node.y = wy - offsetY;
+    el.style.left = node.x + 'px';
+    el.style.top = node.y + 'px';
+    updateEdges();
+    return;
+  }
+
+  if (panning) {
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    lastX = e.clientX;
+    lastY = e.clientY;
+    view.tx += dx;
+    view.ty += dy;
+    applyTransform();
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (draggingNode) {
+    draggingNode.el.classList.remove('dragging');
+    draggingNode = null;
+    saveState();
+  }
+  panning = false;
+  viewport.classList.remove('dragging');
+});
+
+viewport.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = viewport.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const newScale = Math.min(2.5, Math.max(0.2, view.scale * factor));
+  // 以鼠标位置为中心缩放
+  view.tx = mx - (mx - view.tx) * (newScale / view.scale);
+  view.ty = my - (my - view.ty) * (newScale / view.scale);
+  view.scale = newScale;
+  applyTransform();
+});
+
+// 禁止浏览器默认拖拽图片/文本
+document.addEventListener('dragstart', e => e.preventDefault());
+
+// ========== 侧边栏：自由拉动调整宽度 ==========
+const SIDEBAR_W_KEY = 'evolution-chain-sidebar-w';
+function loadSidebarWidth() {
+  try {
+    const w = parseInt(localStorage.getItem(SIDEBAR_W_KEY), 10);
+    if (w >= 180 && w <= 600) return w;
+  } catch (e) {}
+  return 260;
+}
+function initSidebarResizer() {
+  const sidebar = document.getElementById('sidebar');
+  const resizer = document.getElementById('sidebarResizer');
+  const toggleBtn = document.getElementById('sidebarToggle');
+  if (!sidebar || !resizer || !toggleBtn) return;
+
+  // 恢复上次宽度
+  sidebar.style.width = loadSidebarWidth() + 'px';
+
+  // 拖动右边缘 → 自由调整宽度（180px ~ 600px）
+  let dragging = false, startX = 0, startW = 0;
+  resizer.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragging = true;
+    startX = e.clientX;
+    startW = sidebar.offsetWidth;
+    resizer.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const w = startW + (e.clientX - startX);
+    sidebar.style.width = Math.min(600, Math.max(180, w)) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    try { localStorage.setItem(SIDEBAR_W_KEY, String(sidebar.offsetWidth)); } catch (e) {}
+  });
+
+  // 收起 / 展开
+  toggleBtn.addEventListener('click', () => {
+    const collapsed = sidebar.classList.toggle('collapsed');
+    toggleBtn.textContent = collapsed ? '»' : '«';
+    sidebar.style.width = collapsed ? '40px' : (loadSidebarWidth() + 'px');
+  });
+}
+
+// ========== 初始化 ==========
+initSidebarResizer();
+const saved = loadSavedState();
+const visibleChainIds = new Set(problemGroups.flatMap(g => g.chainIds));
+if (saved.activeChainId && chains[saved.activeChainId] && visibleChainIds.has(saved.activeChainId)) activeChainId = saved.activeChainId;
+renderChainList();
+buildWorld();
+fitView();
+
+// ========== 进化链闯关游戏 ==========
+let game = {
+  chainId: null,
+  order: [],
+  index: 0,
+  score: 0,
+  lives: 3,
+  cleared: new Set(),
+  currentQuestions: [],
+  questionIndex: 0,
+  answered: false
+};
+
+function topoOrder(chain) {
+  const nodes = chain.nodes;
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  const indeg = new Map(nodes.map(n => [n.id, 0]));
+  const adj = new Map(nodes.map(n => [n.id, []]));
+  chain.edges.forEach(e => {
+    if (byId.has(e.from) && byId.has(e.to)) {
+      adj.get(e.from).push(e.to);
+      indeg.set(e.to, (indeg.get(e.to) || 0) + 1);
+    }
+  });
+  const queue = nodes.filter(n => (indeg.get(n.id) || 0) === 0).map(n => n.id);
+  const result = [];
+  while (queue.length) {
+    const id = queue.shift();
+    result.push(id);
+    (adj.get(id) || []).forEach(to => {
+      indeg.set(to, indeg.get(to) - 1);
+      if (indeg.get(to) === 0) queue.push(to);
+    });
+  }
+  // 若有环/孤立节点，把没排到的补在最后
+  nodes.forEach(n => { if (!result.includes(n.id)) result.push(n.id); });
+  return result.map(id => byId.get(id));
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function uniqueStrings(arr) {
+  return [...new Set(arr.filter(x => x && x.trim()))];
+}
+
+function buildNodeQuestions(chain, node, order) {
+  const questions = [];
+  const allFormulas = uniqueStrings(chain.nodes.map(n => n.formula).filter(Boolean));
+  const detail = getNodeDetail(chain.id, node);
+  const nodeFormula = (node.formula || '').trim();
+  const correctFormula = nodeFormula || (detail.analysis ? detail.analysis.split('\n')[0].replace(/^[：:]\s*/, '') : '');
+  const formulaOptions = uniqueStrings([correctFormula, ...allFormulas]);
+  // 至少凑 3 个选项
+  const genericFormulas = ['条件翻译 + 函数求值域', '直接套公式', '数形结合', '先识别轨迹再求解', '基本不等式取等'];
+  genericFormulas.forEach(f => { if (formulaOptions.length < 3) formulaOptions.push(f); });
+  const finalFormulaOptions = shuffle(formulaOptions.slice(0, 4));
+
+  // 核心结论/公式题
+  if (correctFormula) {
+    questions.push({
+      type: 'formula',
+      stem: `「${node.title}」的核心结论 / 关键公式是什么？`,
+      correct: correctFormula,
+      options: finalFormulaOptions
+    });
+  }
+
+  // 进化增量题（非根节点且有入边）
+  const incoming = chain.edges.filter(e => e.to === node.id);
+  if (incoming.length) {
+    const allLabels = uniqueStrings(chain.edges.map(e => e.label));
+    const correctLabels = uniqueStrings(incoming.map(e => e.label));
+    const labelOptions = uniqueStrings([...correctLabels, ...allLabels]);
+    const genericOps = ['数字变大', '题目变长', '计算变复杂', '条件隐藏', '加分类讨论', '具体→参数'];
+    genericOps.forEach(op => { if (labelOptions.length < 3) labelOptions.push(op); });
+    const finalLabelOptions = shuffle(labelOptions.slice(0, 4));
+    questions.push({
+      type: 'evolution',
+      stem: `从上一节点进化到「${node.title}」，关键的进化增量是？`,
+      correct: correctLabels,
+      options: finalLabelOptions
+    });
+  }
+  if (!questions.length) {
+      questions.push({
+        type: 'confirm',
+        stem: `请确认你已经理解「${node.title}」这个节点。`,
+        correct: '理解了',
+        options: shuffle(['理解了', '还没理解', '跳过'])
+      });
+    }
+    return questions;
+}
+
+function startGame(chainId) {
+  const chain = chains[chainId] || chains[activeChainId];
+  if (!chain) return;
+  game.chainId = chain.id;
+  game.order = topoOrder(chain);
+  game.index = 0;
+  game.score = 0;
+  game.lives = 3;
+  game.cleared = new Set();
+  game.answered = false;
+  document.getElementById('gameOverlay').classList.remove('hidden');
+  document.getElementById('gameChainName').textContent = `${chain.name} · ${chain.goal}`;
+  loadGameNode();
+}
+
+function restartGame() {
+  startGame(game.chainId || activeChainId);
+}
+
+function closeGame() {
+  document.getElementById('gameOverlay').classList.add('hidden');
+}
+
+function renderGamePath() {
+  const pathEl = document.getElementById('gamePath');
+  pathEl.innerHTML = '';
+  game.order.forEach((node, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'game-node-chip';
+    if (i === game.index && game.lives > 0) chip.classList.add('current');
+    if (game.cleared.has(node.id)) chip.classList.add('cleared');
+    if (i > game.index && !game.cleared.has(node.id)) chip.classList.add('locked');
+    chip.textContent = `${i + 1}. ${node.title}`;
+    pathEl.appendChild(chip);
+  });
+}
+
+function loadGameNode() {
+  const chain = chains[game.chainId];
+  if (game.index >= game.order.length) {
+    renderGameWin();
+    return;
+  }
+  if (game.lives <= 0) {
+    renderGameLose();
+    return;
+  }
+  const node = game.order[game.index];
+  game.currentQuestions = buildNodeQuestions(chain, node, game.order);
+  game.questionIndex = 0;
+  game.answered = false;
+  renderGamePath();
+  renderGameQuestion();
+  updateGameStats();
+}
+
+function renderGameQuestion() {
+  const q = game.currentQuestions[game.questionIndex];
+  const box = document.getElementById('gameQuestionBox');
+  const meta = document.getElementById('gameQuestionMeta');
+  const text = document.getElementById('gameQuestionText');
+  const opts = document.getElementById('gameOptions');
+  const feedback = document.getElementById('gameFeedback');
+  const nextBtn = document.getElementById('gameNextBtn');
+  const restartBtn = document.getElementById('gameRestartBtn');
+
+  if (!q) return;
+  meta.textContent = `第 ${game.index + 1} / ${game.order.length} 关 · 小问 ${game.questionIndex + 1} / ${game.currentQuestions.length}`;
+  text.textContent = q.stem;
+  opts.innerHTML = '';
+  feedback.textContent = '';
+  feedback.className = 'game-feedback';
+  nextBtn.classList.add('hidden');
+  restartBtn.classList.add('hidden');
+
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'game-option';
+    btn.textContent = opt;
+    btn.onclick = () => answerGame(i, btn);
+    opts.appendChild(btn);
+  });
+  updateGameStats();
+}
+
+function answerGame(optionIndex, btn) {
+  if (game.answered || game.lives <= 0) return;
+  const q = game.currentQuestions[game.questionIndex];
+  const chosen = q.options[optionIndex];
+  const correct = Array.isArray(q.correct) ? q.correct : [q.correct];
+  const isCorrect = correct.some(c => c === chosen);
+
+  const feedback = document.getElementById('gameFeedback');
+  const opts = document.getElementById('gameOptions');
+  const buttons = [...opts.children];
+
+  if (isCorrect) {
+    game.answered = true;
+    game.score += 10;
+    feedback.textContent = '✅ 正确！';
+    feedback.className = 'game-feedback good';
+    btn.classList.add('correct');
+    buttons.forEach(b => b.disabled = true);
+    updateGameStats();
+    setTimeout(() => {
+      if (game.questionIndex + 1 < game.currentQuestions.length) {
+        game.questionIndex++;
+        game.answered = false;
+        renderGameQuestion();
+      } else {
+        game.cleared.add(game.order[game.index].id);
+        game.score += 5;
+        updateGameStats();
+        renderGamePath();
+        const nextBtn = document.getElementById('gameNextBtn');
+        const restartBtn = document.getElementById('gameRestartBtn');
+        feedback.textContent = '🎉 本关通过！';
+        nextBtn.classList.remove('hidden');
+        restartBtn.classList.remove('hidden');
+      }
+    }, 450);
+  } else {
+    game.lives--;
+    feedback.textContent = `❌ 不对，再想想（剩余 ❤️ ${game.lives}）`;
+    feedback.className = 'game-feedback bad';
+    btn.classList.add('wrong');
+    btn.disabled = true;
+    updateGameStats();
+    if (game.lives <= 0) {
+      setTimeout(renderGameLose, 500);
+    }
+  }
+}
+
+function nextGameNode() {
+  game.index++;
+  game.answered = false;
+  loadGameNode();
+}
+
+function updateGameStats() {
+  document.getElementById('gameLives').textContent = game.lives;
+  document.getElementById('gameScore').textContent = game.score;
+  const clearedCount = game.cleared.size + (game.lives > 0 && game.cleared.has(game.order[game.index]?.id) ? 0 : 0);
+  document.getElementById('gameProgress').textContent = `${game.cleared.size}/${game.order.length}`;
+}
+
+function renderGameWin() {
+  const meta = document.getElementById('gameQuestionMeta');
+  const text = document.getElementById('gameQuestionText');
+  const opts = document.getElementById('gameOptions');
+  const feedback = document.getElementById('gameFeedback');
+  const nextBtn = document.getElementById('gameNextBtn');
+  const restartBtn = document.getElementById('gameRestartBtn');
+  meta.textContent = '🏁 通关';
+  text.innerHTML = `<div class="game-win"><h2>🎉 通关成功！</h2><p>你完成了「${chains[game.chainId].name}」</p><p>得分 <b>${game.score}</b>，剩余生命 <b>${game.lives}</b></p></div>`;
+  opts.innerHTML = '';
+  feedback.textContent = '';
+  feedback.className = 'game-feedback';
+  nextBtn.classList.add('hidden');
+  restartBtn.classList.remove('hidden');
+  document.getElementById('gamePath').innerHTML = '';
+  updateGameStats();
+}
+
+function renderGameLose() {
+  const meta = document.getElementById('gameQuestionMeta');
+  const text = document.getElementById('gameQuestionText');
+  const opts = document.getElementById('gameOptions');
+  const feedback = document.getElementById('gameFeedback');
+  const nextBtn = document.getElementById('gameNextBtn');
+  const restartBtn = document.getElementById('gameRestartBtn');
+  meta.textContent = '💔 失败';
+  text.innerHTML = `<div class="game-lose"><h2>💔 挑战失败</h2><p>生命值用完了，再试一次吧！</p><p>当前得分 <b>${game.score}</b></p></div>`;
+  opts.innerHTML = '';
+  feedback.textContent = '';
+  feedback.className = 'game-feedback';
+  nextBtn.classList.add('hidden');
+  restartBtn.classList.remove('hidden');
+  document.getElementById('gamePath').innerHTML = '';
+  updateGameStats();
+}
+
+// 支持从 ?game=1 直接进入闯关模式
+(function () {
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get('game') === '1') {
+      setTimeout(() => startGame(activeChainId), 120);
+    }
+  } catch (e) {}
+})();
+</script>
+<script>
+/* ========== 标注评论模式（2026-08-16 用户需求：页面上自由标注评论，导出给 AI 快速修改） ========== */
+(function () {
+  if (window.__annLoaded) return;
+  window.__annLoaded = true;
+  var marks = [];        // {type:'rect'|'arrow'|'text', x,y,x2,y2,text,color}
+  var active = false, tool = 'rect';
+  var cur = null, svg = null, overlay = null, bar = null, txtLayer = null;
+  var COLORS = ['#f43f5e', '#f59e0b', '#22c55e', '#38bdf8'];
+
+  function css(el, s) { el.style.cssText = s; return el; }
+
+  function start() {
+    active = true;
+    overlay = css(document.createElement('div'), 'position:fixed;inset:0;z-index:20000;background:rgba(10,14,28,.45);cursor:crosshair');
+    svg = css(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), 'position:fixed;inset:0;z-index:20001;pointer-events:none;width:100%;height:100%');
+    txtLayer = css(document.createElement('div'), 'position:fixed;inset:0;z-index:20001;pointer-events:none;overflow:hidden');
+    document.body.appendChild(overlay);
+    document.body.appendChild(svg);
+    document.body.appendChild(txtLayer);
+    buildBar();
+    overlay.addEventListener('mousedown', onDown);
+    overlay.addEventListener('mousemove', onMove);
+    overlay.addEventListener('mouseup', onUp);
+    overlay.addEventListener('dblclick', onDbl);
+  }
+
+  function stop() {
+    active = false;
+    if (overlay) { overlay.remove(); overlay = null; }
+    if (svg) { svg.remove(); svg = null; }
+    if (txtLayer) { txtLayer.remove(); txtLayer = null; }
+    if (bar) { bar.remove(); bar = null; }
+    cur = null;
+    btn.textContent = '✏️ 标注';
+    btn.style.background = '#0ea5e9';
+  }
+
+  function buildBar() {
+    if (bar) bar.remove();
+    bar = css(document.createElement('div'), 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:20002;display:flex;gap:6px;padding:8px 12px;background:rgba(15,23,42,.96);border:1px solid #38bdf8;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.55);align-items:center');
+    var defs = [
+      ['rect', '⬜ 框选'], ['arrow', '➡️ 箭头'], ['text', '💬 评论'],
+    ];
+    defs.forEach(function (d) {
+      var b = css(document.createElement('button'), 'padding:6px 12px;border-radius:8px;border:1px solid #334155;background:' + (tool === d[0] ? '#0ea5e9' : 'rgba(255,255,255,.08)') + ';color:#fff;cursor:pointer;font-size:13px');
+      b.textContent = d[1];
+      b.onclick = function () { tool = d[0]; buildBar(); };
+      bar.appendChild(b);
+    });
+    var undo = css(document.createElement('button'), 'padding:6px 10px;border-radius:8px;border:1px solid #334155;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:13px');
+    undo.textContent = '↩️ 撤销';
+    undo.onclick = function () { if (marks.length) { var m = marks.pop(); redraw(); } };
+    var clear = css(document.createElement('button'), 'padding:6px 10px;border-radius:8px;border:1px solid #334155;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:13px');
+    clear.textContent = '🗑 清空';
+    clear.onclick = function () { marks = []; redraw(); };
+    var exp = css(document.createElement('button'), 'padding:6px 14px;border-radius:8px;border:1px solid #16a34a;background:#16a34a;color:#fff;cursor:pointer;font-size:13px;font-weight:700');
+    exp.textContent = '📤 导出给AI';
+    exp.onclick = exportJson;
+    var quit = css(document.createElement('button'), 'padding:6px 10px;border-radius:8px;border:1px solid #334155;background:rgba(255,255,255,.08);color:#9ca3af;cursor:pointer;font-size:13px');
+    quit.textContent = '✕ 退出';
+    quit.onclick = stop;
+    bar.appendChild(undo);
+    bar.appendChild(clear);
+    bar.appendChild(exp);
+    bar.appendChild(quit);
+    document.body.appendChild(bar);
+  }
+
+  function pos(e) {
+    var r = overlay.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  function onDown(e) {
+    if (e.button !== 0) return;
+    var p = pos(e);
+    if (tool === 'text') {
+      var t = prompt('评论内容：');
+      if (t && t.trim()) {
+        marks.push({ type: 'text', x: p.x, y: p.y, text: t.trim(), color: COLORS[marks.length % COLORS.length] });
+        redraw();
+      }
+      return;
+    }
+    cur = { type: tool, x: p.x, y: p.y, x2: p.x, y2: p.y, color: COLORS[marks.length % COLORS.length] };
+  }
+
+  function onMove(e) {
+    if (!cur) return;
+    var p = pos(e);
+    cur.x2 = p.x; cur.y2 = p.y;
+    redraw();
+  }
+
+  function onUp() {
+    if (!cur) return;
+    var d = Math.abs(cur.x2 - cur.x) + Math.abs(cur.y2 - cur.y);
+    if (d > 8) marks.push(cur);
+    cur = null;
+    redraw();
+  }
+
+  function onDbl(e) { e.preventDefault(); }
+
+  function drawOne(m) {
+    if (m.type === 'rect') {
+      var r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      r.setAttribute('x', Math.min(m.x, m.x2));
+      r.setAttribute('y', Math.min(m.y, m.y2));
+      r.setAttribute('width', Math.abs(m.x2 - m.x));
+      r.setAttribute('height', Math.abs(m.y2 - m.y));
+      r.setAttribute('fill', m.color + '22');
+      r.setAttribute('stroke', m.color);
+      r.setAttribute('stroke-width', '3');
+      svg.appendChild(r);
+    } else if (m.type === 'arrow') {
+      var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', m.x); line.setAttribute('y1', m.y);
+      line.setAttribute('x2', m.x2); line.setAttribute('y2', m.y2);
+      line.setAttribute('stroke', m.color); line.setAttribute('stroke-width', '3');
+      svg.appendChild(line);
+      var ang = Math.atan2(m.y2 - m.y, m.x2 - m.x);
+      var head = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      var hx = m.x2, hy = m.y2;
+      var p1 = (hx - 12 * Math.cos(ang - 0.45)) + ',' + (hy - 12 * Math.sin(ang - 0.45));
+      var p2 = (hx - 12 * Math.cos(ang + 0.45)) + ',' + (hy - 12 * Math.sin(ang + 0.45));
+      head.setAttribute('d', 'M ' + hx + ',' + hy + ' L ' + p1 + ' L ' + p2 + ' Z');
+      head.setAttribute('fill', m.color);
+      svg.appendChild(head);
+    } else if (m.type === 'text') {
+      var t = css(document.createElement('div'), 'position:absolute;left:' + m.x + 'px;top:' + m.y + 'px;background:#fef3c7;color:#78350f;border:2px solid ' + m.color + ';border-radius:8px;padding:6px 10px;font-size:14px;max-width:320px;box-shadow:0 4px 12px rgba(0,0,0,.4);white-space:pre-wrap');
+      t.textContent = m.text;
+      txtLayer.appendChild(t);
+    }
+  }
+
+  function redraw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    while (txtLayer.firstChild) txtLayer.removeChild(txtLayer.firstChild);
+    marks.forEach(drawOne);
+    if (cur) { // 实时草稿
+      drawOne({ type: cur.type, x: cur.x, y: cur.y, x2: cur.x2, y2: cur.y2, color: cur.color });
+    }
+  }
+
+  function exportJson() {
+    var data = {
+      page: 'evolution-chain-viz.html（进化链网站）',
+      url: location.href,
+      time: new Date().toISOString(),
+      note: '标注坐标为页面像素；评论文字即修改意见。请把本 JSON 拖入 DSH 对话上传，AI 会读取并修改。',
+      marks: marks
+    };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = '网站标注_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.json';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+    alert('✅ 标注已导出为 JSON 文件\n\n请把该文件拖入 DSH 对话上传，我会读取标注并快速修改网站。');
+  }
+
+  var btn = css(document.createElement('button'), 'position:fixed;right:16px;bottom:16px;z-index:19999;padding:9px 16px;border-radius:10px;border:1px solid #38bdf8;background:#0ea5e9;color:#fff;font-weight:700;cursor:pointer;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.45)');
+  btn.textContent = '✏️ 标注';
+  btn.title = '在页面上自由标注评论，导出 JSON 给 AI 修改';
+  btn.onclick = function () {
+    if (active) stop();
+    else { start(); btn.textContent = '✏️ 标注中…'; btn.style.background = '#f43f5e'; }
+  };
+  document.body.appendChild(btn);
+})();
+</script>
+</body>
+</html>
