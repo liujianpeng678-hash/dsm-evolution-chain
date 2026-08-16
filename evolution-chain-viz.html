@@ -839,6 +839,15 @@
         <button onclick="startGame(activeChainId)" style="background:#0ea5e9;border-color:#38bdf8;color:#fff;font-weight:700">🎮 闯关</button>
   </div>
 
+  <!-- 链选择器：问题叶子多条链时弹出（2026-08-16 用户要求：显示该问题下所有链供选择） -->
+  <div id="chainPicker" style="display:none;position:fixed;inset:0;z-index:19998;background:rgba(10,14,28,.72);align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#1e293b;border:1px solid #38bdf8;border-radius:14px;padding:18px 22px;min-width:340px;max-width:480px;box-shadow:0 12px 40px rgba(0,0,0,.5)">
+      <div id="chainPickerTitle" style="font-weight:700;margin-bottom:8px;color:#e2e8f0"></div>
+      <div id="chainPickerList"></div>
+      <button onclick="document.getElementById('chainPicker').style.display='none'" style="margin-top:10px;width:100%;padding:7px;border-radius:8px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:13px">取消</button>
+    </div>
+  </div>
+
   <div id="modal" class="modal hidden">
     <div class="modal-backdrop" onclick="closeModal()"></div>
     <div class="modal-content">
@@ -1078,18 +1087,44 @@ function renderChainList() {
     if (hasChain) {
       btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">🔗 ${node.n}</span><span class="leaf-badge">${node.c.length}</span>`;
       btn.title = '点击查看进化链（' + node.c.length + ' 条）';
-      btn.onclick = () => {
-        activeChainId = node.c[0]; // 默认加载该问题的总进化图
-        renderChainList();
-        buildWorld();
-        focusChain(activeChainId);
-        saveState();
-      };
+      btn.onclick = () => chooseChain(node);
     } else {
       btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">◇ ${node.n}</span>`;
       btn.title = '进化链待建';
     }
     chainList.appendChild(btn);
+  }
+
+  // 问题叶子点击：多条链时弹出链列表供选择，单条链直接加载
+  function chooseChain(node) {
+    if (!node.c || node.c.length === 0) return;
+    if (node.c.length === 1) { loadChain(node.c[0]); return; }
+    const picker = document.getElementById('chainPicker');
+    const listEl = document.getElementById('chainPickerList');
+    const titleEl = document.getElementById('chainPickerTitle');
+    if (!picker || !listEl) { loadChain(node.c[0]); return; }
+    titleEl.textContent = '该问题下有 ' + node.c.length + ' 条进化链：';
+    listEl.innerHTML = '';
+    node.c.forEach((id, i) => {
+      const c = chains[id];
+      if (!c) return;
+      const b = document.createElement('button');
+      b.style.cssText = 'display:block;width:100%;margin:6px 0;padding:9px 12px;border-radius:8px;border:1px solid #334155;background:rgba(255,255,255,.06);color:#e2e8f0;cursor:pointer;text-align:left;font-size:13px';
+      b.innerHTML = '<b>' + (i + 1) + '. ' + c.name + '</b> <span style="color:#64748b">（' + c.nodes.length + ' 节点 · ' + (c.edges || []).length + ' 边）</span>';
+      b.onmouseover = () => { b.style.background = 'rgba(56,189,248,.15)'; };
+      b.onmouseout = () => { b.style.background = 'rgba(255,255,255,.06)'; };
+      b.onclick = () => { picker.style.display = 'none'; loadChain(id); };
+      listEl.appendChild(b);
+    });
+    picker.style.display = 'flex';
+  }
+
+  function loadChain(id) {
+    activeChainId = id;
+    renderChainList();
+    buildWorld();
+    focusChain(activeChainId);
+    saveState();
   }
 
   // 目录节点：每一层都可自由展开/收起其后代；点标题即切换
