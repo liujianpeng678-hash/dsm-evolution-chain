@@ -408,6 +408,20 @@
     background: #1e293b;
   }
 
+  /* 链切换条样式（2026-08-16） */
+  .chain-tab {
+    padding: 6px 14px;
+    border-radius: 9px;
+    border: 1px solid #334155;
+    background: rgba(255, 255, 255, .07);
+    color: #cbd5e1;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .chain-tab:hover { background: rgba(56, 189, 248, .15); }
+  .chain-tab.active { background: #0ea5e9; border-color: #38bdf8; color: #fff; font-weight: 700; }
+
   .node .badge {
     width: 8px;
     height: 8px;
@@ -902,6 +916,9 @@
 
 
 
+  <!-- 链切换条：进化链界面内自由选择当前问题的进化链（2026-08-16） -->
+  <div id="chainTabs" style="display:none;position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:19997;gap:8px;padding:8px 12px;background:rgba(15,23,42,.94);border:1px solid rgba(56,189,248,.4);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:70vw;flex-wrap:wrap;justify-content:center"></div>
+
   <div id="viewport">
     <div id="world">
       <svg id="edgeLayer" width="6000" height="6000">
@@ -966,8 +983,6 @@ function getNodeDetail(chainId, node) {
 // ========== 状态 ==========
 let view = { scale: 0.8, tx: 80, ty: 40 };
 let activeChainId = 'ssa';
-// 多链合并视图：问题叶子挂多条链时同时显示所有链（2026-08-16 用户要求"显示所有链"）
-let activeChainIds = null;
 // 子树折叠状态：{ chainId: { nodeId: true } }（true = 该节点后面的所有后代节点被隐藏，按链持久化）
 let subtreeState = {};
 const SUBTREE_KEY = 'evolution-chain-subtree-v1';
@@ -1296,22 +1311,42 @@ function focusNode(id) {
 
 
 
-// 问题叶子点击（全局）：多条链时同时显示所有链（合并视图），单条链直接加载
+// 问题叶子点击（全局）：进入进化链界面——显示该问题下所有链的切换条，默认加载第一条
+// （2026-08-16 用户要求：自由选择进化链，只显示所选链的节点）
 function chooseChain(node) {
   if (!node.c || node.c.length === 0) return;
-  if (node.c.length === 1) { loadChain(node.c[0]); return; }
-  // 多链：合并显示所有链，不弹选择器（用户要求"显示所有链，不要一条条"）
-  activeChainIds = node.c.slice();
-  activeChainId = node.c[0];
-  renderChainList();
-  buildWorld();
-  fitView();
-  saveState();
+  renderChainTabs(node.c);
+  loadChain(node.c[0]);
+}
+
+// 链切换条：画布上方常驻显示当前问题的所有链，点击切换（只显示所选链）
+function renderChainTabs(chainIds) {
+  const bar = document.getElementById('chainTabs');
+  if (!bar) return;
+  const valid = chainIds.filter(id => chains[id]);
+  if (valid.length <= 1) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = '';
+  valid.forEach(id => {
+    const c = chains[id];
+    const b = document.createElement('button');
+    b.className = 'chain-tab' + (id === activeChainId ? ' active' : '');
+    b.textContent = c.name;
+    b.title = c.goal;
+    b.onclick = () => {
+      if (id === activeChainId) return;
+      renderChainTabs(valid); // 刷新高亮
+      loadChain(id);
+    };
+    bar.appendChild(b);
+  });
 }
 
 function loadChain(id) {
-  activeChainIds = null;
   activeChainId = id;
+  // 高亮切换条当前链
+  const bar = document.getElementById('chainTabs');
+  if (bar) bar.querySelectorAll('.chain-tab').forEach(b => b.classList.toggle('active', b.textContent === (chains[id] || {}).name));
   renderChainList();
   buildWorld();
   focusChain(activeChainId);
@@ -1324,11 +1359,10 @@ function buildWorld() {
   world.querySelectorAll('.node').forEach(n => n.remove());
   edgeLayer.querySelectorAll('path.edge, text.edge-label').forEach(n => n.remove());
 
-  const multi = activeChainIds && activeChainIds.length > 1;
   const chain = chains[activeChainId];
   subtreeState = loadSubtreeState();
 
-  if (!multi && chain) {
+  if (chain) {
     // 默认缩略后面的节点：无折叠记录时只显示母题（2026-08-16 用户要求）
     if (!subtreeState[activeChainId] || Object.keys(subtreeState[activeChainId]).length === 0) {
       const root = chain.nodes.find(n => !(chain.edges || []).some(e => e.to === n.id)) || chain.nodes[0];
@@ -1337,27 +1371,8 @@ function buildWorld() {
         saveSubtreeState();
       }
     }
-  }
 
-  if (multi) {
-    // 多链合并视图：各链节点合并，母题（根节点）对齐到同一列，链与链垂直错开（参考图风格）
-    nodes = [];
-    edges = [];
-    activeChainIds.forEach((cid, ci) => {
-      const ch = chains[cid];
-      if (!ch) return;
-      const roots = ch.nodes.filter(n => !(ch.edges || []).some(e => e.to === n.id));
-      const root = roots[0] || ch.nodes[0];
-      // 平移量：根节点归零（x 对齐同一列），垂直按链序号错开
-      const dx = root.x, dy = root.y;
-      ch.nodes.forEach(n => nodes.push({
-        ...n, id: cid + ':' + n.id, cid, origId: n.id,
-        x: n.x - dx, y: n.y - dy + ci * 640,
-      }));
-      (ch.edges || []).forEach(e => edges.push({ from: cid + ':' + e.from, to: cid + ':' + e.to, label: e.label, cid }));
-    });
-  } else {
-    // 可见性过滤：被折叠祖先覆盖的后代节点不显示
+    // 单链渲染：可见性过滤（被折叠祖先覆盖的后代节点不显示）
     const hidden = computeHidden(chain);
     const visNodes = chain.nodes.filter(n => !hidden.has(n.id));
     const visEdges = chain.edges.filter(e => !hidden.has(e.from) && !hidden.has(e.to));
@@ -1371,15 +1386,14 @@ function buildWorld() {
   const folded = subtreeState[activeChainId] || {};
 
   nodes.forEach(node => {
-    const cid = node.cid || activeChainId;
-    const ch = chains[cid];
-    const realId = node.origId || node.id;
-    const detail = getNodeDetail(cid, { ...node, id: realId });
+    const ch = chain;
+    const realId = node.id;
+    const detail = getNodeDetail(activeChainId, node);
     const el = document.createElement('div');
     el.className = `node ${node.type}`;
     el.dataset.id = node.id;
     el.title = '点击标题折叠/展开它后面的节点';
-    const hasKids = !multi && ch.edges.some(e => e.from === realId);
+    const hasKids = ch.edges.some(e => e.from === realId);
     const kidsHidden = !!folded[node.id];
     const btnHtml = hasKids
       ? '<span class="collapse-btn" title="' + (kidsHidden ? '展开后面的节点' : '缩略后面的节点') + '">' + (kidsHidden ? '▸' : '▾') + '</span>'
@@ -1412,8 +1426,9 @@ function buildWorld() {
     }
 
     // 点头部 = 折叠/展开它后面的节点（单链模式；多链视图暂不折叠，聚焦单链后可折叠）
+    // 点头部 = 折叠/展开它后面的节点（2026-08-16 用户要求）
     const head = el.querySelector('.node-head');
-    if (head && !multi) {
+    if (head) {
       head.addEventListener('click', (e) => {
         e.stopPropagation();
         if (dragMoved) return;
@@ -1433,31 +1448,9 @@ function buildWorld() {
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       if (dragMoved) return;
-      openNode(cid, { ...node, id: realId });
+      openNode(activeChainId, node);
     });
   });
-
-  // 多链视图：每链根节点上方显示链名标签（点击聚焦该链）
-  if (multi) {
-    activeChainIds.forEach(cid => {
-      const ch = chains[cid];
-      if (!ch) return;
-      const roots = ch.nodes.filter(n => !(ch.edges || []).some(e => e.to === n.id));
-      const first = roots[0] || ch.nodes[0];
-      const fnode = nodes.find(n => n.cid === cid && n.origId === first.id);
-      if (!fnode) return;
-      const tag = document.createElement('div');
-      tag.className = 'chain-tag';
-      tag.textContent = '🔗 ' + ch.name;
-      tag.style.cssText = 'position:absolute;left:' + (fnode.x - 60) + 'px;top:' + (fnode.y - 46) + 'px;padding:4px 12px;border-radius:8px;background:rgba(56,189,248,.18);border:1px solid #38bdf8;color:#7dd3fc;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;z-index:5';
-      tag.title = '点击只显示这条链';
-      tag.addEventListener('click', (e) => {
-        e.stopPropagation();
-        loadChain(cid);
-      });
-      world.appendChild(tag);
-    });
-  }
 
   edges.forEach(edge => {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
