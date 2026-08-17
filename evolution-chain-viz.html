@@ -905,6 +905,11 @@
         </div>
         <p id="modalAnalysis"></p>
       </div>
+      <!-- 类似题区块（2026-08-16 理论落地：节点=1 母题+多道类似题） -->
+      <div class="modal-section" id="modalSimilarSection" style="display:none">
+        <h3>类似题（同条件结构）</h3>
+        <div id="modalSimilarList"></div>
+      </div>
     </div>
   </div>
 
@@ -1575,6 +1580,26 @@ function openNode(chainId, node) {
   } else {
     aSec.style.display = 'none';
     document.getElementById('modalAnswerImage').removeAttribute('src');
+  }
+
+  // 类似题（同条件结构，理论 v1.0：节点 = 1 母题 + 多道类似题）
+  const simSec = document.getElementById('modalSimilarSection');
+  const simList = document.getElementById('modalSimilarList');
+  const sims = detail.similar || [];
+  if (sims.length > 0) {
+    simSec.style.display = '';
+    simList.innerHTML = '';
+    sims.forEach((s, i) => {
+      const q = s.q || s.question || '';
+      const a = s.a || s.answer || '';
+      const box = document.createElement('div');
+      box.style.cssText = 'margin:8px 0;padding:8px 10px;border:1px solid rgba(128,128,128,.28);border-radius:8px;background:rgba(255,255,255,.04);font-size:12px;line-height:1.7';
+      box.innerHTML = '<b style="color:#7dd3fc">类似题 ' + (i + 1) + '</b>　' + q.replace(/</g, '&lt;') + (a ? '<br><span style="color:#94a3b8">答案：' + a.replace(/</g, '&lt;') + '</span>' : '');
+      simList.appendChild(box);
+    });
+  } else {
+    simSec.style.display = 'none';
+    simList.innerHTML = '';
   }
 
   document.getElementById('modal').classList.remove('hidden');
