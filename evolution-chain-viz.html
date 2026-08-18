@@ -334,6 +334,27 @@
     pointer-events: none;
   }
 
+  /* 节点级验证（2026-08-17 用户定稿：验证粒度从链级改为节点级）
+     未验证节点/连线 = 虚幻：灰色虚线 + 半透明；验证通过（validated===true）恢复真实样式 */
+  .node.unverified {
+    border: 1px dashed #94a3b8;
+    opacity: .55;
+  }
+  .node.unverified:hover {
+    border-color: #cbd5e1;
+    opacity: .85;
+  }
+  /* 虚幻边：任一端节点未验证；与 .edge.highlight 共存时虚幻优先 */
+  path.edge.unverified,
+  path.edge.unverified.highlight {
+    stroke: #94a3b8;
+    stroke-dasharray: 7 5;
+    opacity: .5;
+  }
+  text.edge-label.unverified {
+    opacity: .55;
+  }
+
   .node {
     position: absolute;
     width: 280px;
@@ -374,6 +395,41 @@
   }
   .node-head .collapse-btn.none { visibility: hidden; }
   .node-head .collapse-btn:hover { color: #f1f5f9; }
+
+  /* 节点处选择：勾选圆钮 + 进化链标签（2026-08-18 用户要求：在画布节点处选择节点/进化链） */
+  .node-pick {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid #64748b; background: transparent; color: transparent;
+    font-size: 13px; line-height: 16px; text-align: center;
+    cursor: pointer; flex: none; padding: 0; margin-left: 2px;
+    transition: all .12s ease; user-select: none;
+  }
+  .node-pick:hover { border-color: #38bdf8; background: rgba(56,189,248,.15); }
+  .node-pick.on { border-color: #38bdf8; background: #38bdf8; color: #0f172a; font-weight: 900; }
+  .node.picked { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56,189,248,.45), 0 8px 20px rgba(0,0,0,.45); }
+  .node-chain-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    margin-top: 8px; padding: 2px 8px;
+    font-size: 11px; color: #7dd3fc; background: rgba(56,189,248,.12);
+    border: 1px solid rgba(56,189,248,.35); border-radius: 999px;
+    cursor: pointer; transition: all .12s ease; user-select: none;
+  }
+  .node-chain-tag:hover { background: rgba(56,189,248,.25); border-color: #38bdf8; }
+  .chain-pop {
+    position: fixed; z-index: 19999; min-width: 200px; max-width: 320px;
+    background: rgba(15,23,42,.97); border: 1px solid rgba(56,189,248,.45);
+    border-radius: 12px; padding: 8px; box-shadow: 0 12px 32px rgba(0,0,0,.6);
+  }
+  .chain-pop .cp-title { font-size: 11px; color: #94a3b8; margin: 2px 4px 6px; }
+  .chain-pop .cp-item {
+    display: block; width: 100%; text-align: left;
+    padding: 6px 8px; margin: 2px 0; border-radius: 6px;
+    border: none; background: transparent; color: #e2e8f0;
+    font-size: 12px; cursor: pointer; transition: background .12s ease;
+  }
+  .chain-pop .cp-item:hover { background: rgba(56,189,248,.15); }
+  .chain-pop .cp-item.cur { color: #38bdf8; font-weight: 700; }
+  .chain-pop .cp-item .cp-dot { color: #38bdf8; margin-right: 6px; }
   .node.collapsed {
     min-height: 0;
     padding: 8px 10px;
@@ -844,6 +900,153 @@
     .game-head { flex-wrap: wrap; }
     .game-stats { order: 3; width: 100%; justify-content: center; }
   }
+
+  /* ========== 验证库（2026-08-17 新增：进化链先进验证库，用户判定通过才正式入库） ========== */
+  #sidebar.collapsed .verify-entry-btn { display: none; }
+  .verify-entry-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: linear-gradient(135deg, rgba(245,158,11,.2), rgba(245,158,11,.08));
+    color: #fcd34d;
+    border: 1px solid rgba(245,158,11,.55);
+    border-radius: 8px;
+    padding: 9px 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+    transition: all .15s ease;
+  }
+  .verify-entry-btn:hover { background: rgba(245,158,11,.32); border-color: #f59e0b; }
+  .verify-entry-btn.done {
+    background: linear-gradient(135deg, rgba(34,197,94,.16), rgba(34,197,94,.06));
+    color: #86efac;
+    border-color: rgba(34,197,94,.5);
+  }
+  .verify-entry-btn.done:hover { background: rgba(34,197,94,.26); border-color: #22c55e; }
+
+  .verify-card {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all .15s ease;
+    flex-shrink: 0;
+  }
+  .verify-card:hover { border-color: #475569; background: #16233c; }
+  .verify-card.selected {
+    border-color: #38bdf8;
+    background: rgba(56,189,248,.1);
+    box-shadow: inset 0 0 0 1px #38bdf8;
+  }
+  .v-badge {
+    display: inline-block;
+    border-radius: 999px;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 8px;
+    flex-shrink: 0;
+  }
+  .v-badge.v-pending { background: rgba(245,158,11,.18); color: #fcd34d; border: 1px solid rgba(245,158,11,.5); }
+  .v-badge.v-rejected { background: rgba(239,68,68,.16); color: #fca5a5; border: 1px solid rgba(239,68,68,.5); }
+  .v-badge.v-approved { background: rgba(34,197,94,.16); color: #86efac; border: 1px solid rgba(34,197,94,.5); }
+  .verify-toolbar { display: flex; gap: 8px; margin-top: 12px; align-items: center; flex-wrap: wrap; }
+  .verify-toolbar button {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #e2e8f0;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all .15s ease;
+  }
+  .verify-toolbar button:hover { background: #334155; border-color: #475569; }
+  .verify-toolbar button.primary { background: #16a34a; border-color: #22c55e; color: #fff; font-weight: 700; }
+  .verify-toolbar button.primary:hover { background: #15803d; border-color: #22c55e; }
+  .verify-toolbar button.danger { background: #dc2626; border-color: #ef4444; color: #fff; font-weight: 700; }
+  .verify-toolbar button.danger:hover { background: #b91c1c; border-color: #ef4444; }
+  .verify-toolbar button.export { background: #0ea5e9; border-color: #38bdf8; color: #fff; font-weight: 700; }
+  .verify-toolbar button.export:hover { background: #0284c7; border-color: #38bdf8; }
+  .verify-close {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: all .15s ease;
+    flex-shrink: 0;
+  }
+  .verify-close:hover { color: #f1f5f9; border-color: #64748b; background: #334155; }
+  .verify-mini { color: #f59e0b; font-size: 10px; flex-shrink: 0; }
+
+  /* 验证库面板：逐节点判定列表（2026-08-17 节点级验证） */
+  .vnode-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #334155;
+  }
+  .vnode-back {
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .vnode-back:hover { color: #f1f5f9; border-color: #475569; }
+  .vnode-progress { color: #7dd3fc; font-size: 12px; margin-left: auto; flex-shrink: 0; }
+  .vnode-row {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 10px;
+    padding: 9px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .vnode-row:hover { border-color: #475569; }
+  .vnode-main { flex: 1; min-width: 0; }
+  .vnode-title { font-size: 12.5px; color: #e2e8f0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .vnode-summary {
+    color: #94a3b8;
+    font-size: 11.5px;
+    margin-top: 4px;
+    line-height: 1.5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .vnode-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .vnode-actions button {
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid #334155;
+    background: #1e293b;
+    color: #e2e8f0;
+  }
+  .vnode-actions button.vnode-ok { border-color: #22c55e; color: #86efac; }
+  .vnode-actions button.vnode-ok:hover { background: rgba(34,197,94,.18); }
+  .vnode-actions button.vnode-no { border-color: #ef4444; color: #fca5a5; }
+  .vnode-actions button.vnode-no:hover { background: rgba(239,68,68,.16); }
 </style>
 </head>
 <body>
@@ -854,6 +1057,18 @@
       <button id="sidebarToggle" title="收起/展开目录">«</button>
     </div>
     <div class="sub">自由画布：拖动节点、拖背景平移、滚轮缩放</div>
+    <div id="verifyEntry" class="verify-entry-btn" title="验证库：进化链经用户判定通过后才正式入库"></div>
+    <!-- 导出工具条（2026-08-17：直接在当前页面目录树上勾选后导出 Word） -->
+    <div id="exp-toolbar">
+      <div class="exp-tb-row">
+        <label title="学生复习版：题面卷+解析卷"><input type="radio" name="exp-tpl" value="student" checked> 复习版</label>
+        <label title="测试版：题面+解析卷"><input type="radio" name="exp-tpl" value="test"> 测试版</label>
+      </div>
+      <div class="exp-tb-row">标题 <input id="exp-title" value="求解析式" style="width:86px"></div>
+      <div class="exp-tb-row"><button id="exp-btn" title="导出当前勾选的题目为 Word">⬇ 导出 Word</button></div>
+      <div id="exp-count" class="exp-tb-note">已选 0 节点</div>
+      <div id="exp-status" class="exp-tb-note"></div>
+    </div>
     <div id="chainList"></div>
     <div class="legend">
       <div><span class="dot" style="background:#f59e0b"></span>母题 / 方法根</div>
@@ -884,6 +1099,21 @@
     </div>
   </div>
 
+  <!-- 验证库面板（2026-08-17 新增：进化链先进验证库，用户判定通过才正式入库；样式复用 chainPicker 全屏覆盖） -->
+  <div id="verifyPanel" style="display:none;position:fixed;left:0;top:0;bottom:0;width:540px;z-index:19998;background:rgba(10,14,28,.42);align-items:stretch;justify-content:flex-start" onclick="if(event.target===this)this.style.display='none'">
+    <div style="background:#1e293b;border:1px solid rgba(245,158,11,.55);border-radius:0 14px 14px 0;padding:18px 22px;width:100%;height:100%;display:flex;flex-direction:column;box-shadow:4px 0 24px rgba(0,0,0,.45)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px">
+        <div id="verifyPanelTitle" style="font-weight:700;color:#e2e8f0;font-size:15px">🟡 验证库</div>
+        <button class="verify-close" onclick="closeVerifyPanel()" title="关闭">×</button>
+      </div>
+      <div id="verifyList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;min-height:120px;padding-right:4px"></div>
+      <div class="verify-toolbar">
+        <button class="export" onclick="exportVerifyJudged()">⬇ 导出审核结果</button>
+        <span id="verifySelInfo" style="color:#94a3b8;font-size:12px;margin-left:auto"></span>
+      </div>
+    </div>
+  </div>
+
   <div id="modal" class="modal hidden">
     <div class="modal-backdrop" onclick="closeModal()"></div>
     <div class="modal-content">
@@ -909,6 +1139,16 @@
       <div class="modal-section" id="modalSimilarSection" style="display:none">
         <h3>类似题（同条件结构）</h3>
         <div id="modalSimilarList"></div>
+      </div>
+      <!-- 节点验证操作区（2026-08-17 用户要求：在节点处直接验证；未验证节点显示） -->
+      <div class="modal-section" id="modalVerifySection" style="display:none">
+        <h3>节点验证</h3>
+        <p id="modalVerifyHint" style="color:#94a3b8;font-size:12px;margin:0 0 8px"></p>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="verify-toolbar primary" onclick="modalJudge('approved')">✅ 通过</button>
+          <button class="verify-toolbar danger" onclick="modalJudge('rejected')">❌ 驳回</button>
+          <span id="modalVerifyState" style="color:#94a3b8;font-size:12px"></span>
+        </div>
       </div>
     </div>
   </div>
@@ -972,11 +1212,19 @@
 <script src="data/chains.js"></script>
 <script src="data/problemGroups.js"></script>
 <script src="data/nodeDetails.js"></script>
+<script src="data/pending.js"></script>
+<!-- 导出选择面板必须在本内联逻辑之前加载：renderProblem 依赖 window.__expInitProblem 决定问题行是否渲染勾选框（2026-08-18 修复加载时序 bug，此前在 2804 行末尾加载导致首次渲染全部走无勾选框分支） -->
+<script src="export-panel.js?v=20260818"></script>
 <script>
 // ========== 逻辑（数据已外置） ==========
 
 
 function getNodeDetail(chainId, node) {
+  // 验证库预览优先：pending 条目自带 details（键 "chainId:nodeId"），与正式链查看体验一致
+  if (pendingViewEntry && pendingViewEntry.details) {
+    const pkey = chainId + ':' + node.id;
+    if (pendingViewEntry.details[pkey]) return pendingViewEntry.details[pkey];
+  }
   const key = chainId + ':' + node.id;
   if (nodeDetails[key]) return nodeDetails[key];
   // 跨链复用同编号节点的详情（如 B1、B8 等唯一编号）
@@ -988,6 +1236,10 @@ function getNodeDetail(chainId, node) {
 // ========== 状态 ==========
 let view = { scale: 0.8, tx: 80, ty: 40 };
 let activeChainId = 'ssa';
+// 验证库状态（2026-08-17 新增）
+let pendingViewEntry = null;  // 画布当前预览的验证库条目（getNodeDetail 优先查其 details）
+let verifySelId = null;       // 验证库面板当前选中条目 id
+const verifyJudged = {};      // 内存节点级判定记录 { [entryId+':'+nodeId]: {id, node, verdict, reason?} }，仅本次会话点过判定的节点
 // 子树折叠状态：{ chainId: { nodeId: true } }（true = 该节点后面的所有后代节点被隐藏，按链持久化）
 let subtreeState = {};
 const SUBTREE_KEY = 'evolution-chain-subtree-v1';
@@ -1087,6 +1339,278 @@ function applySavedPositions(chainId, nodeList) {
 }
 
 
+// ========== 验证库（2026-08-17 新增：进化链先进验证库，用户判定通过才正式入库） ==========
+// 数据来自 data/pending.js：const pending = [{id,status:"pending"|"rejected",rejectReason,submittedAt,judgedAt,chain:{id,name,goal,nodes,edges},details:{},nodeStates:{nodeId:{status:"pending"|"approved"|"rejected",reason,judgedAt}},mounts:[],groups:[],images:[]}]
+// 判定粒度=节点（2026-08-17 用户定稿）：逐节点 ✅/❌，结果存内存 verifyJudged 并导出 JSON（不写文件），由 AI 读取 JSON 后执行正式入库/驳回登记
+// 正式库节点级验证：chains[id].nodes[].validated（缺失视为未验证）
+
+// 链是否含未验证节点（validated!==true；缺失=未验证）
+function chainHasUnverifiedNodes(c) {
+  if (!c || !Array.isArray(c.nodes)) return false;
+  return c.nodes.some(n => n.validated !== true);
+}
+
+function getPendingList() {
+  return (typeof pending !== 'undefined' && Array.isArray(pending)) ? pending : [];
+}
+function countPending() {
+  return getPendingList().filter(x => x && x.status === 'pending').length;
+}
+function renderVerifyEntry() {
+  const btn = document.getElementById('verifyEntry');
+  if (!btn) return;
+  const n = countPending();
+  btn.classList.toggle('done', n === 0);
+  btn.innerHTML = n > 0 ? '🟡 验证库（' + n + ' 条待判定）' : '✅ 验证库（全部已入库）';
+}
+function openVerifyPanel() {
+  const n = countPending();
+  document.getElementById('verifyPanelTitle').textContent = n > 0 ? '🟡 验证库（' + n + ' 条待判定）' : '✅ 验证库（全部已判定）';
+  renderVerifyList();
+  document.getElementById('verifyPanel').style.display = 'flex';
+}
+function closeVerifyPanel() {
+  document.getElementById('verifyPanel').style.display = 'none';
+}
+function renderVerifyList() {
+  const list = document.getElementById('verifyList');
+  const items = getPendingList();
+  list.innerHTML = '';
+  if (!items.length) {
+    list.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:20px 6px">验证库为空 —— 全部进化链均已正式入库 🎉</div>';
+    verifySelId = null;
+    updateVerifySelInfo();
+    return;
+  }
+  items.forEach(entry => {
+    const st = entry.status === 'rejected' ? 'rejected' : (entry.status === 'approved' ? 'approved' : 'pending');
+    const chain = entry.chain || {};
+    const card = document.createElement('div');
+    card.className = 'verify-card' + (entry.id === verifySelId ? ' selected' : '');
+    let html = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '<b style="color:#e2e8f0;font-size:13px">' + (chain.name || entry.id) + '</b>'
+      + (st === 'pending' ? '<span class="v-badge v-pending">🟡 待判定</span>'
+        : st === 'rejected' ? '<span class="v-badge v-rejected">🔴 已驳回</span>'
+        : '<span class="v-badge v-approved">🟢 已通过</span>')
+      + '</div>'
+      + '<div style="color:#94a3b8;font-size:12px;margin-top:5px;line-height:1.6">🎯 ' + (chain.goal || '—') + ' · ' + (chain.nodes ? chain.nodes.length : 0) + ' 个节点</div>';
+    if (st === 'rejected') {
+      html += '<div style="color:#fca5a5;font-size:12px;margin-top:5px">驳回原因：' + (entry.rejectReason || '（未填写）') + '</div>';
+    }
+    if (entry.judgedAt) {
+      html += '<div style="color:#64748b;font-size:11px;margin-top:4px">判定时间：' + entry.judgedAt + '</div>';
+    }
+    card.innerHTML = html;
+    card.title = '点击进入该链逐节点判定';
+    card.onclick = () => selectVerifyEntry(entry);
+    list.appendChild(card);
+  });
+  updateVerifySelInfo();
+}
+function selectVerifyEntry(entry) {
+  verifySelId = entry.id;
+  renderVerifyChain(entry);    // 画布预览（未验证节点虚幻显示）
+  renderVerifyNodeList(entry); // 面板切到该链的逐节点判定列表
+}
+// 节点判定状态：本次会话内存判定优先，其次 entry.nodeStates，缺省 pending
+function getNodeVerdict(entry, nodeId) {
+  const k = entry.id + ':' + nodeId;
+  if (verifyJudged[k]) return verifyJudged[k];
+  const ns = (entry.nodeStates && entry.nodeStates[nodeId]) || {};
+  if (ns.status === 'approved') return { verdict: 'approved' };
+  if (ns.status === 'rejected') return { verdict: 'rejected', reason: ns.reason || '' };
+  return null;
+}
+function countNodeJudged(entry) {
+  if (!entry || !entry.chain || !entry.chain.nodes) return { done: 0, total: 0 };
+  const total = entry.chain.nodes.length;
+  let done = 0;
+  entry.chain.nodes.forEach(n => { if (getNodeVerdict(entry, n.id)) done++; });
+  return { done, total };
+}
+// 该链节点列表（逐节点判定视图）：每节点一行 = 节点 id + 标题 + 题目摘要(前40字) + 状态徽章 + ✅/❌ 按钮
+function renderVerifyNodeList(entry) {
+  const list = document.getElementById('verifyList');
+  const chain = (entry && entry.chain) || {};
+  const nodes = chain.nodes || [];
+  const prog = countNodeJudged(entry);
+  list.innerHTML = '';
+  // 头部：返回列表 + 链名 + 进度
+  const head = document.createElement('div');
+  head.className = 'vnode-head';
+  const back = document.createElement('button');
+  back.className = 'vnode-back';
+  back.textContent = '← 返回列表';
+  back.onclick = renderVerifyList;
+  const nameEl = document.createElement('b');
+  nameEl.style.cssText = 'color:#e2e8f0;font-size:13px';
+  nameEl.textContent = chain.name || entry.id;
+  const progEl = document.createElement('span');
+  progEl.className = 'vnode-progress';
+  progEl.textContent = '已判定 ' + prog.done + '/' + prog.total + ' 节点';
+  head.appendChild(back);
+  head.appendChild(nameEl);
+  head.appendChild(progEl);
+  list.appendChild(head);
+  if (!nodes.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:#94a3b8;font-size:13px;padding:16px 6px';
+    empty.textContent = '该条目没有节点数据';
+    list.appendChild(empty);
+  }
+  nodes.forEach(node => {
+    const v = getNodeVerdict(entry, node.id);
+    const badge = document.createElement('span');
+    if (v) {
+      if (v.verdict === 'approved') {
+        badge.className = 'v-badge v-approved';
+        badge.textContent = '✅ 已通过';
+      } else {
+        badge.className = 'v-badge v-rejected';
+        badge.textContent = '🔴 已驳回' + (v.reason ? '：' + v.reason : '');
+      }
+    } else {
+      badge.className = 'v-badge v-pending';
+      badge.textContent = '🟡 待判定';
+    }
+    const detail = (entry.details && entry.details[chain.id + ':' + node.id]) || {};
+    const summary = detail.question || node.content || '';
+    const row = document.createElement('div');
+    row.className = 'vnode-row';
+    row.dataset.node = node.id;
+    const main = document.createElement('div');
+    main.className = 'vnode-main';
+    const title = document.createElement('div');
+    title.className = 'vnode-title';
+    const idB = document.createElement('b');
+    idB.style.color = '#7dd3fc';
+    idB.textContent = node.id;
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = node.title || '';
+    title.appendChild(idB);
+    title.appendChild(nameSpan);
+    title.appendChild(badge);
+    main.appendChild(title);
+    if (summary) {
+      const s = document.createElement('div');
+      s.className = 'vnode-summary';
+      s.textContent = summary.length > 40 ? summary.slice(0, 40) + '…' : summary;
+      main.appendChild(s);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'vnode-actions';
+    const okBtn = document.createElement('button');
+    okBtn.className = 'vnode-ok';
+    okBtn.textContent = '✅ 通过';
+    okBtn.onclick = () => judgeNode(entry.id, node.id, 'approved');
+    const noBtn = document.createElement('button');
+    noBtn.className = 'vnode-no';
+    noBtn.textContent = '❌ 驳回';
+    noBtn.onclick = () => judgeNode(entry.id, node.id, 'rejected');
+    actions.appendChild(okBtn);
+    actions.appendChild(noBtn);
+    row.appendChild(main);
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+  updateVerifySelInfo();
+}
+function updateVerifySelInfo() {
+  const info = document.getElementById('verifySelInfo');
+  if (!info) return;
+  const entry = getPendingList().find(x => x && x.id === verifySelId);
+  if (entry) {
+    const prog = countNodeJudged(entry);
+    info.textContent = '当前：' + (entry.chain ? entry.chain.name : entry.id) + '（已判定 ' + prog.done + '/' + prog.total + ' 节点）';
+  } else {
+    info.textContent = '未选中条目';
+  }
+}
+function renderVerifyChain(entry) {
+  if (!entry || !entry.chain) return;
+  pendingViewEntry = entry;
+  const c = entry.chain;
+  // 验证库预览默认展开整条链（临时清空该链折叠记录；buildWorld 内 loadSubtreeState 会读 localStorage，故直接改存储）
+  const prevSub = loadSubtreeState();
+  const st = loadSubtreeState();
+  delete st[c.id];
+  localStorage.setItem(SUBTREE_KEY, JSON.stringify(st));
+  // 临时注入 chains 以复用现有单链渲染路径（loadChain → renderChainList/buildWorld/focusChain + 节点详情 modal），渲染后恢复
+  const hadPrev = Object.prototype.hasOwnProperty.call(chains, c.id);
+  const prev = chains[c.id];
+  chains[c.id] = c;
+  try {
+    loadChain(c.id, { fromVerify: true });
+  } finally {
+    if (hadPrev) chains[c.id] = prev; else delete chains[c.id];
+    localStorage.setItem(SUBTREE_KEY, JSON.stringify(prevSub));
+    subtreeState = prevSub;
+    pendingViewEntry = null;
+  }
+}
+// 单节点验证状态统一判定（2026-08-17 节点级验证）：正式库 validated===true 或 本次会话判定通过（verifyJudged/entry.nodeStates approved）
+function getNodeVerified(chainId, nodeId) {
+  const c = chains[chainId];
+  if (c && c.nodes.some(n => n.id === nodeId && n.validated === true)) return true;
+  const entry = getPendingList().find(e => e && e.chain && e.chain.id === chainId);
+  if (!entry) return false;
+  const key = entry.id + ':' + nodeId;
+  // verifyJudged 元素为 {verdict}，nodeStates 元素为 {status}，两者兼容判断
+  const st = verifyJudged[key] || (entry.nodeStates && entry.nodeStates[nodeId]);
+  return !!st && (st.status === 'approved' || st.verdict === 'approved');
+}
+// modal 内节点处判定：记录当前判定目标，供「节点验证」操作区按钮调用
+let modalJudgeEntryId = null, modalJudgeNodeId = null;
+function modalJudge(verdict) {
+  if (!modalJudgeEntryId || !modalJudgeNodeId) return;
+  const verdictText = judgeNode(modalJudgeEntryId, modalJudgeNodeId, verdict);
+  // 判定成功后刷新画布与 modal 状态（节点即时变真实）
+  buildWorld();
+  const chainId = activeChainId;
+  const node = chains[chainId] && chains[chainId].nodes.find(n => n.id === modalJudgeNodeId);
+  if (node) openNode(chainId, node);
+}
+// 单节点判定：✅ 通过 / ❌ 驳回（驳回 prompt 必填原因）→ 更新内存 verifyJudged 并镜像到 entry.nodeStates（仅内存）
+function judgeNode(entryId, nodeId, verdict) {
+  const entry = getPendingList().find(x => x && x.id === entryId);
+  if (!entry || !entry.chain || !entry.chain.nodes.some(n => n.id === nodeId)) { alert('找不到该条目/节点'); return; }
+  const key = entryId + ':' + nodeId;
+  if (verdict === 'rejected') {
+    const reason = prompt('请输入驳回原因（必填，将随审核结果一并导出）：');
+    if (!reason || !reason.trim()) { alert('驳回必须填写原因'); return; }
+    verifyJudged[key] = { id: entryId, node: nodeId, verdict: 'rejected', reason: reason.trim() };
+  } else {
+    verifyJudged[key] = { id: entryId, node: nodeId, verdict: 'approved' };
+  }
+  entry.nodeStates = entry.nodeStates || {};
+  entry.nodeStates[nodeId] = {
+    status: verifyJudged[key].verdict,
+    reason: verifyJudged[key].reason || '',
+    judgedAt: new Date().toISOString().slice(0, 10)
+  };
+  renderVerifyNodeList(entry);
+  renderVerifyEntry();
+  return verifyJudged[key].verdict;
+}
+// 导出数据（仅含已判定节点）：{"judged":[{"id":"vq-xxx","node":"R0","verdict":"approved"},...]}
+function buildVerifyExport() {
+  return { judged: Object.keys(verifyJudged).map(k => verifyJudged[k]) };
+}
+function exportVerifyJudged() {
+  const ids = Object.keys(verifyJudged);
+  if (!ids.length) { alert('还没有判定记录。请先选中条目，逐节点点击「✅ 通过」或「❌ 驳回」。'); return; }
+  const data = buildVerifyExport();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '验证库审核结果_' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.json';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+  alert('✅ 审核结果已导出为 JSON 文件\n\n请把该 JSON 拖入 DSH 对话上传，我会执行正式入库/驳回登记。');
+}
+
+
 // ========== 构建侧边栏 ==========
 // 10W 题扩展：目录树改为深度优先分片渲染（每帧 16ms 时间片），
 // 展开超大目录时不一次性创建数万 DOM、不卡主线程
@@ -1122,21 +1646,46 @@ function renderChainList() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(st0)); } catch (e) {}
   }
 
-  // 问题叶子：紧凑单行，点击才切换进化链（问题层）
+  // 问题叶子：紧凑单行，点击才切换进化链（问题层）；2026-08-17 增强：行首勾选框选择题目，箭头展开链/节点级选择
   function renderProblem(node, depth) {
     const hasChain = node.c && node.c.length > 0;
     const btn = document.createElement('button');
     btn.className = 'chain-btn leaf' + (hasChain ? '' : ' pending') + (hasChain && node.c.includes(activeChainId) ? ' active' : '');
     const pad = depth * 14;
     if (hasChain) {
-      btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">🔗 ${node.n}</span><span class="leaf-badge">${node.c.length}</span>`;
-      btn.title = '点击查看进化链（' + node.c.length + ' 条）';
+      // 该问题下含未验证节点（任一节点 validated!==true）时显示 🟡 标记（2026-08-17 节点级验证）
+      const hasUnvalidated = node.c.some(cid => chainHasUnverifiedNodes(chains[cid]));
+      btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">🔗 ${node.n}</span>` + (hasUnvalidated ? '<span class="verify-mini" title="该问题下含未验证节点：未验证节点及相连连线以灰色虚线显示">🟡</span>' : '') + `<span class="leaf-badge">${node.c.length}</span>`;
+      btn.title = hasUnvalidated ? '点击查看进化链（含未验证节点，' + node.c.length + ' 条）' : '点击查看进化链（' + node.c.length + ' 条）';
       btn.onclick = () => chooseChain(node);
     } else {
       btn.innerHTML = `<span class="leaf-name" style="padding-left:${pad}px">◇ ${node.n}</span>`;
       btn.title = '进化链待建';
     }
-    chainList.appendChild(btn);
+    if (hasChain && window.__expInitProblem) {
+      // 行容器：勾选框 + 按钮 + 展开箭头 + 子容器（链/节点级选择）
+      const wrap = document.createElement('div');
+      wrap.className = 'prob-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'exp-cb';
+      cb.title = '勾选 = 选择该问题下全部题目（含所有链的所有节点）';
+      const toggle = document.createElement('span');
+      toggle.className = 'exp-arrow';
+      toggle.textContent = '▸';
+      toggle.title = '展开/收起链与节点选择';
+      const sub = document.createElement('div');
+      sub.className = 'prob-sub';
+      sub.style.display = 'none';
+      wrap.appendChild(cb);
+      wrap.appendChild(btn);
+      wrap.appendChild(toggle);
+      wrap.appendChild(sub);
+      chainList.appendChild(wrap);
+      window.__expInitProblem(node, cb, toggle, sub);
+    } else {
+      chainList.appendChild(btn);
+    }
   }
 
   // 目录节点：每一层都可自由展开/收起其后代；点标题即切换
@@ -1336,8 +1885,15 @@ function renderChainTabs(chainIds) {
     const c = chains[id];
     const b = document.createElement('button');
     b.className = 'chain-tab' + (id === activeChainId ? ' active' : '');
-    b.textContent = c.name;
-    b.title = c.goal;
+    b.dataset.id = id;
+    // 未验证节点徽章（2026-08-17 节点级验证：任一节点 validated!==true 显示 🟡）
+    if (chainHasUnverifiedNodes(c)) {
+      b.innerHTML = c.name + ' <span class="v-badge v-pending">🟡含未验证节点</span>';
+      b.title = c.goal + '（含未验证节点，未验证节点及相连连线为虚幻显示）';
+    } else {
+      b.textContent = c.name;
+      b.title = c.goal;
+    }
     b.onclick = () => {
       if (id === activeChainId) return;
       renderChainTabs(valid); // 刷新高亮
@@ -1347,15 +1903,70 @@ function renderChainTabs(chainIds) {
   });
 }
 
-function loadChain(id) {
+function loadChain(id, opts) {
+  // 正式链加载时退出验证库预览上下文；验证库内部加载（fromVerify）保留之
+  if (!(opts && opts.fromVerify)) pendingViewEntry = null;
+  const c = chains[id];
+  // 节点级验证（2026-08-17）：不再整链 alert，未验证节点已在画布上以虚幻（灰虚线半透明）表达
   activeChainId = id;
-  // 高亮切换条当前链
+  // 高亮切换条当前链（按 data-id 匹配，避免含徽章文本干扰）
   const bar = document.getElementById('chainTabs');
-  if (bar) bar.querySelectorAll('.chain-tab').forEach(b => b.classList.toggle('active', b.textContent === (chains[id] || {}).name));
+  if (bar) bar.querySelectorAll('.chain-tab').forEach(b => b.classList.toggle('active', b.dataset.id === id));
   renderChainList();
   buildWorld();
   focusChain(activeChainId);
   saveState();
+}
+
+// 节点处选择进化链：弹出当前链所属问题下的所有链（2026-08-18 用户要求：在画布节点处选择进化链）
+function showChainPop(anchor, curChainId) {
+  // 关闭已打开的浮层
+  const old = document.getElementById('chainPop');
+  if (old) old.remove();
+  // 从 catalog 找含 curChainId 的问题叶子（该问题下所有链）
+  let chainIds = null;
+  const walk = (node) => {
+    if (chainIds) return;
+    if (node.c && node.c.includes(curChainId)) { chainIds = node.c; return; }
+    (node.ch || []).forEach(walk);
+  };
+  catalog.ch.forEach(walk);
+  if (!chainIds) {
+    // 兜底：当前链单独
+    chainIds = [curChainId];
+  }
+  const valid = chainIds.filter(id => chains[id]);
+  const pop = document.createElement('div');
+  pop.id = 'chainPop';
+  pop.className = 'chain-pop';
+  const rect = anchor.getBoundingClientRect();
+  pop.style.left = Math.min(rect.left, window.innerWidth - 330) + 'px';
+  pop.style.top = Math.min(rect.bottom + 6, window.innerHeight - 260) + 'px';
+  let html = '<div class="cp-title">选择进化链（' + valid.length + ' 条）</div>';
+  valid.forEach(id => {
+    const c = chains[id];
+    html += '<button class="cp-item' + (id === curChainId ? ' cur' : '') + '" data-cid="' + id + '">'
+      + (id === curChainId ? '<span class="cp-dot">●</span>' : '<span class="cp-dot">○</span>')
+      + (c.name || id)
+      + (id === curChainId ? '（当前）' : '')
+      + '</button>';
+  });
+  pop.innerHTML = html;
+  document.body.appendChild(pop);
+  pop.querySelectorAll('.cp-item').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = b.dataset.cid;
+      pop.remove();
+      if (id !== curChainId) loadChain(id);
+    });
+  });
+  // 点击外部关闭
+  setTimeout(() => {
+    const close = (e) => {
+      if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('mousedown', close, true); }
+    };
+    document.addEventListener('mousedown', close, true);
+  }, 0);
 }
 
 // ========== 构建节点与边 ==========
@@ -1364,12 +1975,19 @@ function buildWorld() {
   world.querySelectorAll('.node').forEach(n => n.remove());
   edgeLayer.querySelectorAll('path.edge, text.edge-label').forEach(n => n.remove());
 
+  // 画布勾选圆钮刷新钩子：每次重绘后重建 painters（2026-08-18）
+  window.__canvasPickPainters = [];
+  window.__expCanvasRefresh = function () {
+    (window.__canvasPickPainters || []).forEach(function (p) { try { p(); } catch (e) {} });
+  };
+
   const chain = chains[activeChainId];
   subtreeState = loadSubtreeState();
+  // 节点级验证（2026-08-17）：validated!==true 的节点/连线加 unverified（虚幻灰虚线半透明），见 CSS
 
   if (chain) {
-    // 默认缩略后面的节点：无折叠记录时只显示母题（2026-08-16 用户要求）
-    if (!subtreeState[activeChainId] || Object.keys(subtreeState[activeChainId]).length === 0) {
+    // 默认缩略后面的节点：无折叠记录时只显示母题（2026-08-16 用户要求；验证库预览除外——判定需看完整链）
+    if (!pendingViewEntry && (!subtreeState[activeChainId] || Object.keys(subtreeState[activeChainId]).length === 0)) {
       const root = chain.nodes.find(n => !(chain.edges || []).some(e => e.to === n.id)) || chain.nodes[0];
       if (root && (chain.edges || []).some(e => e.from === root.id)) {
         subtreeState[activeChainId] = { [root.id]: true };
@@ -1395,7 +2013,7 @@ function buildWorld() {
     const realId = node.id;
     const detail = getNodeDetail(activeChainId, node);
     const el = document.createElement('div');
-    el.className = `node ${node.type}`;
+    el.className = `node ${node.type}` + (!getNodeVerified(activeChainId, node.id) ? ' unverified' : '');
     el.dataset.id = node.id;
     el.title = '点击标题折叠/展开它后面的节点';
     const hasKids = ch.edges.some(e => e.from === realId);
@@ -1409,16 +2027,52 @@ function buildWorld() {
         <div class="node-idx">${realId}</div>
         <div class="title">${node.title}</div>
         ${btnHtml}
+        <button class="node-pick" title="选择/取消选择该节点（含导出）">✓</button>
       </div>
       <div class="node-body">
         <div class="content">${(detail.question || node.content).replace(/</g, '&lt;')}</div>
         <div class="formula">${node.formula}</div>
+        <span class="node-chain-tag" title="点击选择该问题的进化链">🧬 ${(chains[activeChainId] && chains[activeChainId].name) || activeChainId} ▾</span>
       </div>
     `;
     el.style.left = node.x + 'px';
     el.style.top = node.y + 'px';
     node._el = el;
     world.appendChild(el);
+
+    // 节点勾选圆钮（2026-08-18 用户要求：在画布节点处选择节点）
+    const pickBtn = el.querySelector('.node-pick');
+    if (pickBtn) {
+      const pkey = activeChainId + ':' + realId;
+      const paintPick = () => {
+        const on = !!(window.__expCanvasAPI && window.__expCanvasAPI.isPicked(pkey));
+        pickBtn.classList.toggle('on', on);
+        pickBtn.title = on ? '已选择该节点，点击取消' : '选择该节点（含导出）';
+        el.classList.toggle('picked', on);
+      };
+      paintPick();
+      pickBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+      pickBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (window.__expCanvasAPI) {
+          window.__expCanvasAPI.toggleNode(pkey);
+          paintPick();
+        }
+      });
+      el.__paintPick = paintPick;
+      window.__canvasPickPainters = window.__canvasPickPainters || [];
+      window.__canvasPickPainters.push(paintPick);
+    }
+
+    // 节点进化链标签：点击弹出该问题下所有链（2026-08-18 用户要求：在节点处选择进化链）
+    const chainTag = el.querySelector('.node-chain-tag');
+    if (chainTag) {
+      chainTag.addEventListener('mousedown', (e) => e.stopPropagation());
+      chainTag.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showChainPop(chainTag, activeChainId);
+      });
+    }
 
     // 子树折叠/展开按钮：只控制"后面的节点"显示，不影响拖动与弹窗
     if (hasKids) {
@@ -1458,12 +2112,16 @@ function buildWorld() {
   });
 
   edges.forEach(edge => {
+    // 节点级验证：任一端节点未验证 → 连线虚幻（getNodeVerified 含会话内判定记录）
+    const fromNode = nodes.find(n => n.id === edge.from);
+    const toNode = nodes.find(n => n.id === edge.to);
+    const edgeUnverified = !fromNode || !toNode || !getNodeVerified(activeChainId, edge.from) || !getNodeVerified(activeChainId, edge.to);
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('class', 'edge');
+    path.setAttribute('class', 'edge' + (edgeUnverified ? ' unverified' : ''));
     edgeLayer.appendChild(path);
 
     const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    label.setAttribute('class', 'edge-label');
+    label.setAttribute('class', 'edge-label' + (edgeUnverified ? ' unverified' : ''));
     edgeLayer.appendChild(label);
     edge._path = path;
     edge._label = label;
@@ -1557,11 +2215,66 @@ function relayout() {
   focusChain(activeChainId);
 }
 
+// 解析卷三栏表格渲染（2026-08-17：analysis 为「步骤 ｜ 分值 ｜ 【得分理由】」时渲染为三栏表格，否则普通文本）
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function ensureJudgeStyle() {
+  if (document.getElementById('judge-table-style')) return;
+  const st = document.createElement('style');
+  st.id = 'judge-table-style';
+  st.textContent = '.judge-table{border-collapse:collapse;width:100%;margin:6px 0;font-size:12.5px}.judge-table th{background:rgba(29,53,87,.88);color:#fff;padding:5px 8px;text-align:left;border:1px solid rgba(128,128,128,.4)}.judge-table td{border:1px solid rgba(128,128,128,.4);padding:5px 8px;vertical-align:top;line-height:1.6}.judge-score{text-align:center;color:#e63946;font-weight:bold;white-space:nowrap}.judge-tail{color:#94a3b8;font-size:12px;margin-top:4px}';
+  document.head.appendChild(st);
+}
+function renderModalAnalysis(el, analysis) {
+  ensureJudgeStyle();
+  if (!analysis) { el.textContent = '（暂无解析，待补充）'; return; }
+  const lines = String(analysis).split('\n');
+  const rows = [], tail = [];
+  for (const ln of lines) {
+    const t = ln.trim();
+    if (!t) continue;
+    if (t.includes('｜') && t.includes('得分理由')) rows.push(t.split('｜').map(s => s.trim()));
+    else tail.push(t);
+  }
+  if (rows.length >= 2) {
+    let html = '<table class="judge-table"><thead><tr><th style="width:52%">完整解答</th><th style="width:13%">分值</th><th>得分理由</th></tr></thead><tbody>';
+    for (const r of rows) html += '<tr><td>' + escHtml(r[0] || '') + '</td><td class="judge-score">' + escHtml(r[1] || '') + '</td><td>' + escHtml(r[2] || '') + '</td></tr>';
+    html += '</tbody></table>';
+    if (tail.length) html += tail.map(t => '<div class="judge-tail">' + escHtml(t) + '</div>').join('');
+    el.innerHTML = html;
+  } else {
+    el.textContent = analysis;
+  }
+}
+
 function openNode(chainId, node) {
   const detail = getNodeDetail(chainId, node);
-  document.getElementById('modalTitle').textContent = node.title;
+  // 节点验证状态徽章（2026-08-17 节点级验证；getNodeVerified 含会话内判定）
+  const nodeVerified = getNodeVerified(chainId, node.id);
+  document.getElementById('modalTitle').innerHTML = (node.title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    + ' <span class="v-badge ' + (nodeVerified ? 'v-approved' : 'v-pending') + '">' + (nodeVerified ? '✅ 已验证' : '🟡 未验证') + '</span>';
+
+  // 节点验证操作区（2026-08-17 用户要求「在节点处验证」）：未验证节点显示 ✅通过/❌驳回
+  const vSec = document.getElementById('modalVerifySection');
+  const entry = getPendingList().find(e => e && e.chain && e.chain.id === chainId);
+  const nodeInEntry = !!(entry && entry.chain.nodes.some(n => n.id === node.id));
+  if (entry && nodeInEntry && !nodeVerified) {
+    vSec.style.display = '';
+    modalJudgeEntryId = entry.id;
+    modalJudgeNodeId = node.id;
+    const key = entry.id + ':' + node.id;
+    const st = verifyJudged[key] || (entry.nodeStates && entry.nodeStates[node.id]);
+    const stVerdict = st && (st.status || st.verdict);
+    document.getElementById('modalVerifyHint').textContent = '该节点尚未验证通过（虚幻），请判定：通过后节点与相连连线变为真实，驳回可填写原因。';
+    document.getElementById('modalVerifyState').textContent = stVerdict === 'rejected'
+      ? '（当前：🔴 已驳回' + (st.reason ? '：' + st.reason : '') + '，可重新判定）'
+      : '';
+  } else {
+    vSec.style.display = 'none';
+    modalJudgeEntryId = null;
+    modalJudgeNodeId = null;
+  }
   document.getElementById('modalQuestion').textContent = detail.question || node.content || '';
-  document.getElementById('modalAnalysis').textContent = detail.analysis || '（暂无解析，待补充）';
+  renderModalAnalysis(document.getElementById('modalAnalysis'), detail.analysis);
 
   const qImg = detail.questionImage;
   const aImg = detail.answerImage || detail.analysisImage;
@@ -1741,6 +2454,13 @@ if (saved.activeChainId && chains[saved.activeChainId] && visibleChainIds.has(sa
 renderChainList();
 buildWorld();
 fitView();
+
+// 验证库入口（2026-08-17 新增）
+const verifyEntryBtn = document.getElementById('verifyEntry');
+if (verifyEntryBtn) {
+  verifyEntryBtn.addEventListener('click', openVerifyPanel);
+  renderVerifyEntry();
+}
 
 // ========== 进化链闯关游戏 ==========
 let game = {
